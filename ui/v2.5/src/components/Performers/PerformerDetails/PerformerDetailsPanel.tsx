@@ -16,6 +16,10 @@ import {
 } from "../PerformerList";
 import { PatchComponent } from "src/patch";
 import { CustomFields } from "src/components/Shared/CustomFields";
+import {
+  shouldShowFemaleBodyFields,
+  shouldShowPenisFields,
+} from "src/utils/gender";
 
 interface IPerformerDetails {
   performer: GQL.PerformerDataFragment;
@@ -143,26 +147,34 @@ export const PerformerDetailsPanel: React.FC<IPerformerDetails> =
           value={FormatWeight(performer.weight)}
           fullWidth={fullWidth}
         />
-        <DetailItem
-          id="penis_length"
-          value={FormatPenisLength(performer.penis_length)}
-          fullWidth={fullWidth}
-        />
-        <DetailItem
-          id="circumcised"
-          value={FormatCircumcised(performer.circumcised)}
-          fullWidth={fullWidth}
-        />
-        <DetailItem
-          id="measurements"
-          value={performer?.measurements}
-          fullWidth={fullWidth}
-        />
-        <DetailItem
-          id="fake_tits"
-          value={performer?.fake_tits}
-          fullWidth={fullWidth}
-        />
+        {shouldShowPenisFields(performer.gender) && (
+          <>
+            <DetailItem
+              id="penis_length"
+              value={FormatPenisLength(performer.penis_length)}
+              fullWidth={fullWidth}
+            />
+            <DetailItem
+              id="circumcised"
+              value={FormatCircumcised(performer.circumcised)}
+              fullWidth={fullWidth}
+            />
+          </>
+        )}
+        {shouldShowFemaleBodyFields(performer.gender) && (
+          <>
+            <DetailItem
+              id="measurements"
+              value={performer?.measurements}
+              fullWidth={fullWidth}
+            />
+            <DetailItem
+              id="fake_tits"
+              value={performer?.fake_tits}
+              fullWidth={fullWidth}
+            />
+          </>
+        )}
         <DetailItem
           id="tattoos"
           value={performer?.tattoos}

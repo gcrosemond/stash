@@ -22,6 +22,8 @@ import { Prompt } from "react-router-dom";
 import { useFormik } from "formik";
 import {
   genderToString,
+  shouldShowFemaleBodyFields,
+  shouldShowPenisFields,
   stringGenderMap,
   stringToGender,
 } from "src/utils/gender";
@@ -736,12 +738,19 @@ export const PerformerEditPanel: React.FC<IPerformerDetails> = ({
         {renderInputField("eye_color")}
         {renderInputField("height_cm", "number")}
         {renderInputField("weight", "number", "weight_kg")}
-        {renderInputField("penis_length", "number", "penis_length_cm")}
+        {shouldShowPenisFields(formik.values.gender) && (
+          <>
+            {renderInputField("penis_length", "number", "penis_length_cm")}
+            {renderSelectField("circumcised", stringCircumMap)}
+          </>
+        )}
 
-        {renderSelectField("circumcised", stringCircumMap)}
-
-        {renderInputField("measurements")}
-        {renderInputField("fake_tits")}
+        {shouldShowFemaleBodyFields(formik.values.gender) && (
+          <>
+            {renderInputField("measurements")}
+            {renderInputField("fake_tits")}
+          </>
+        )}
 
         {renderInputField("tattoos", "textarea")}
         {renderInputField("piercings", "textarea")}
