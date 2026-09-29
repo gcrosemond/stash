@@ -59,3 +59,11 @@ export const stringToGender = (
 };
 
 export const genderStrings = Array.from(stringGenderMap.keys());
+
+export function shouldShowPenisFields(gender?: GQL.GenderEnum | null) {
+  return gender !== GQL.GenderEnum.Female;
+}
+
+export function shouldShowFemaleBodyFields(gender?: GQL.GenderEnum | null) {
+  return gender !== GQL.GenderEnum.Male;
+}
