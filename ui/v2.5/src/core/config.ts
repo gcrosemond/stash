@@ -90,6 +90,7 @@ export interface IUIConfig {
   minimumPlayPercent?: number;
 
   showAbLoopControls?: boolean;
+  showFrameStepControls?: boolean;
 
   // maximum number of items to shown in the dropdown list - defaults to 200
   // upper limit of 1000

@@ -254,6 +254,21 @@ $sceneTabWidth: 450px;
     }
   }
 
+  .vjs-frame-step-button {
+    width: 3em;
+
+    .vjs-icon-placeholder svg {
+      fill: none;
+      height: 1.2em;
+      stroke: currentColor;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-width: 1.8;
+      vertical-align: middle;
+      width: 1.2em;
+    }
+  }
+
   &.vjs-skip-buttons {
     .vjs-icon-next-item,
     .vjs-icon-previous-item {
