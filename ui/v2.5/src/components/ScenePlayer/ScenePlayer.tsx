@@ -25,6 +25,7 @@ import "./track-activity";
 import "./vrmode";
 import "./media-session";
 import "./wake-sentinel";
+import "./frame-step";
 import cx from "classnames";
 import {
   useSceneSaveActivity,
@@ -57,6 +58,10 @@ chromecast(videojs);
 abLoopPlugin(window, videojs);
 
 function handleHotkeys(player: VideoJsPlayer, event: videojs.KeyboardEvent) {
+  function seekFrames(frames: number) {
+    player.frameStep().step(frames);
+  }
+
   function seekStep(step: number) {
     const time = player.currentTime() + step;
     const duration = player.duration();
@@ -111,6 +116,18 @@ function handleHotkeys(player: VideoJsPlayer, event: videojs.KeyboardEvent) {
     case 37: // left arrow
       seekStep(-seekFactor);
       break;
+  }
+
+  // Frame stepping is intentionally available only while paused.
+  if (
+    (event.which === 90 || event.which === 88) &&
+    !event.ctrlKey &&
+    !event.altKey &&
+    !event.metaKey
+  ) {
+    // z/x step backward/forward; Shift steps ten frames.
+    seekFrames((event.which === 90 ? -1 : 1) * (event.shiftKey ? 10 : 1));
+    return;
   }
 
   // toggle player looping with shift+l
@@ -410,6 +427,9 @@ export const ScenePlayer: React.FC<IScenePlayerProps> = PatchComponent(
           },
           mediaSession: {},
           wakeSentinel: {},
+          frameStep: {
+            enabled: uiConfig?.showFrameStepControls ?? true,
+          },
         },
       };
 
@@ -448,6 +468,7 @@ export const ScenePlayer: React.FC<IScenePlayerProps> = PatchComponent(
       // XXbiome-ignore lint/correctness/useExhaustiveDependencies: intentional
     }, [
       uiConfig?.showAbLoopControls,
+      uiConfig?.showFrameStepControls,
       uiConfig?.enableChromecast,
       interfaceConfig?.autostartVideo,
     ]);
@@ -589,6 +610,8 @@ export const ScenePlayer: React.FC<IScenePlayerProps> = PatchComponent(
       if (!file || scene.id === sceneId.current) return;
 
       sceneId.current = scene.id;
+
+      player.frameStep().setFrameRate(file.frame_rate);
 
       setReady(false);
 

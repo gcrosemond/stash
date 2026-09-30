@@ -490,6 +490,12 @@ export const SettingsInterfacePanel: React.FC = PatchComponent(
             checked={ui.showAbLoopControls ?? undefined}
             onChange={(v) => saveUI({ showAbLoopControls: v })}
           />
+          <BooleanSetting
+            id="show-frame-step-controls"
+            headingID="config.ui.scene_player.options.show_frame_step_controls"
+            checked={ui.showFrameStepControls ?? true}
+            onChange={(v) => saveUI({ showFrameStepControls: v })}
+          />
         </SettingSection>
         <SettingSection headingID="config.ui.tag_panel.heading">
           <BooleanSetting
