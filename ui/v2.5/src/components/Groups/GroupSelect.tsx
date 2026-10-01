@@ -32,8 +32,9 @@ import { TruncatedText } from "../Shared/TruncatedText";
 
 export type Group = Pick<
   GQL.Group,
-  "id" | "name" | "date" | "front_image_path" | "aliases"
+  "id" | "name" | "date" | "front_image_path"
 > & {
+  aliases?: GQL.Group["aliases"];
   studio?: Pick<GQL.Studio, "name"> | null;
 };
 type Option = SelectOption<Group>;
@@ -47,7 +48,7 @@ function sortGroupsByRelevance(input: string, groups: FindGroupsResult) {
     input,
     groups,
     (m) => m.name,
-    (m) => (m.aliases ? [m.aliases] : [])
+    (m) => m.aliases ?? []
   );
 }
 
@@ -111,7 +112,9 @@ export const GroupSelect: React.FC<
     const { inputValue } = optionProps.selectProps;
     let alias: string | undefined = "";
     if (!title.toLowerCase().includes(inputValue.toLowerCase())) {
-      alias = object.aliases || undefined;
+      alias = object.aliases?.find((value) =>
+        value.toLowerCase().includes(inputValue.toLowerCase())
+      );
     }
 
     thisOptionProps = {
@@ -216,7 +219,9 @@ export const GroupSelect: React.FC<
       options.some((o) => {
         return (
           o.name.toLowerCase() === inputValue.toLowerCase() ||
-          o.aliases?.toLowerCase() === inputValue.toLowerCase()
+          o.aliases?.some(
+            (alias) => alias.toLowerCase() === inputValue.toLowerCase()
+          )
         );
       })
     ) {

@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"strings"
 
 	"github.com/stashapp/stash/internal/api/loaders"
 	"github.com/stashapp/stash/internal/api/urlbuilders"
@@ -17,6 +18,30 @@ func (r *groupResolver) Date(ctx context.Context, obj *models.Group) (*string, e
 		return &result, nil
 	}
 	return nil, nil
+}
+
+func (r *groupResolver) Aliases(ctx context.Context, obj *models.Group) ([]string, error) {
+	if !obj.Aliases.Loaded() {
+		if err := r.withReadTxn(ctx, func(ctx context.Context) error {
+			return obj.LoadAliases(ctx, r.repository.Group)
+		}); err != nil {
+			return nil, err
+		}
+	}
+
+	return obj.Aliases.List(), nil
+}
+
+func (r *movieResolver) Aliases(ctx context.Context, obj *models.Group) (*string, error) {
+	aliases, err := r.groupResolver.Aliases(ctx, obj)
+	if err != nil {
+		return nil, err
+	}
+	if len(aliases) == 0 {
+		return nil, nil
+	}
+	value := strings.Join(aliases, ", ")
+	return &value, nil
 }
 
 func (r *groupResolver) Rating100(ctx context.Context, obj *models.Group) (*int, error) {

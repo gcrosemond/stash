@@ -12,6 +12,7 @@ import (
 )
 
 type GroupExportReader interface {
+	models.AliasLoader
 	GetFrontImage(ctx context.Context, groupID int) ([]byte, error)
 	GetBackImage(ctx context.Context, groupID int) ([]byte, error)
 	GetCustomFields(ctx context.Context, groupID int) (map[string]interface{}, error)
@@ -19,9 +20,13 @@ type GroupExportReader interface {
 
 // ToJSON converts a Group into its JSON equivalent.
 func ToJSON(ctx context.Context, reader GroupExportReader, studioReader models.StudioGetter, group *models.Group) (*jsonschema.Group, error) {
+	if err := group.LoadAliases(ctx, reader); err != nil {
+		return nil, fmt.Errorf("loading group aliases: %v", err)
+	}
+
 	newGroupJSON := jsonschema.Group{
 		Name:      group.Name,
-		Aliases:   group.Aliases,
+		Aliases:   group.Aliases.List(),
 		Director:  group.Director,
 		Synopsis:  group.Synopsis,
 		URLs:      group.URLs.List(),

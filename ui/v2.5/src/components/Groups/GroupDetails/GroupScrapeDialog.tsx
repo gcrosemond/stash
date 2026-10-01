@@ -42,7 +42,7 @@ export const GroupScrapeDialog: React.FC<IGroupScrapeDialogProps> = ({
     new ScrapeResult<string>(group.name, scraped.name)
   );
   const [aliases, setAliases] = useState<ScrapeResult<string>>(
-    new ScrapeResult<string>(group.aliases, scraped.aliases)
+    new ScrapeResult<string>(group.aliases?.join(", "), scraped.aliases)
   );
   const [duration, setDuration] = useState<ScrapeResult<string>>(
     new ScrapeResult<string>(

@@ -46,6 +46,7 @@ var (
 	studiosCustomFieldsTable = goqu.T("studio_custom_fields")
 
 	groupsURLsJoinTable     = goqu.T(groupURLsTable)
+	groupsAliasesJoinTable = goqu.T(groupAliasesTable)
 	groupsTagsJoinTable     = goqu.T(groupsTagsTable)
 	groupRelationsJoinTable = goqu.T(groupRelationsTable)
 	groupsCustomFieldsTable = goqu.T("group_custom_fields")
@@ -403,6 +404,14 @@ var (
 			idColumn: groupsURLsJoinTable.Col(groupIDColumn),
 		},
 		valueColumn: groupsURLsJoinTable.Col(groupURLColumn),
+	}
+
+	groupsAliasesTableMgr = &stringTable{
+		table: table{
+			table:    groupsAliasesJoinTable,
+			idColumn: groupsAliasesJoinTable.Col(groupIDColumn),
+		},
+		stringColumn: groupsAliasesJoinTable.Col(groupAliasColumn),
 	}
 
 	groupsTagsTableMgr = &joinTable{

@@ -65,6 +65,7 @@ type GroupReader interface {
 	GroupQueryer
 	GroupCounter
 	URLLoader
+	AliasLoader
 	TagIDLoader
 	ContainingGroupLoader
 	SubGroupLoader

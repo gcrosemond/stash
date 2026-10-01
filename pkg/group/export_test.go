@@ -73,7 +73,7 @@ func createFullMovie(id int, studioID int) models.Group {
 	return models.Group{
 		ID:        id,
 		Name:      movieName,
-		Aliases:   movieAliases,
+		Aliases:   models.NewRelatedStrings([]string{movieAliases}),
 		Date:      &dateObj,
 		Rating:    &rating,
 		Duration:  &duration,
@@ -89,6 +89,7 @@ func createFullMovie(id int, studioID int) models.Group {
 func createEmptyMovie(id int) models.Group {
 	return models.Group{
 		ID:        id,
+		Aliases:   models.NewRelatedStrings([]string{}),
 		URLs:      models.NewRelatedStrings([]string{}),
 		CreatedAt: createTime,
 		UpdatedAt: updateTime,
@@ -98,7 +99,7 @@ func createEmptyMovie(id int) models.Group {
 func createFullJSONMovie(studio, frontImage, backImage string, customFields map[string]interface{}) *jsonschema.Group {
 	return &jsonschema.Group{
 		Name:       movieName,
-		Aliases:    movieAliases,
+		Aliases:    jsonschema.StringOrStringList{movieAliases},
 		Date:       date,
 		Rating:     rating,
 		Duration:   duration,
@@ -120,7 +121,8 @@ func createFullJSONMovie(studio, frontImage, backImage string, customFields map[
 
 func createEmptyJSONMovie() *jsonschema.Group {
 	return &jsonschema.Group{
-		URLs: []string{},
+		Aliases: []string{},
+		URLs:    []string{},
 		CreatedAt: json.JSONTime{
 			Time: createTime,
 		},

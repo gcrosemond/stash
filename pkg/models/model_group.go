@@ -8,7 +8,7 @@ import (
 type Group struct {
 	ID       int    `json:"id"`
 	Name     string `json:"name"`
-	Aliases  string `json:"aliases"`
+	Aliases  RelatedStrings `json:"aliases"`
 	Duration *int   `json:"duration"`
 	Date     *Date  `json:"date"`
 	// Rating expressed in 1-100 scale
@@ -48,6 +48,12 @@ func (m *Group) LoadURLs(ctx context.Context, l URLLoader) error {
 	})
 }
 
+func (m *Group) LoadAliases(ctx context.Context, l AliasLoader) error {
+	return m.Aliases.load(func() ([]string, error) {
+		return l.GetAliases(ctx, m.ID)
+	})
+}
+
 func (m *Group) LoadTagIDs(ctx context.Context, l TagIDLoader) error {
 	return m.TagIDs.load(func() ([]int, error) {
 		return l.GetTagIDs(ctx, m.ID)
@@ -68,7 +74,7 @@ func (m *Group) LoadSubGroupIDs(ctx context.Context, l SubGroupLoader) error {
 
 type GroupPartial struct {
 	Name     OptionalString
-	Aliases  OptionalString
+	Aliases  *UpdateStrings
 	Duration OptionalInt
 	Date     OptionalDate
 	// Rating expressed in 1-100 scale
