@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/stashapp/stash/pkg/logger"
 	"github.com/stashapp/stash/pkg/match"
 	"github.com/stashapp/stash/pkg/models"
 	"github.com/stashapp/stash/pkg/scraper"
@@ -605,5 +606,68 @@ func (r *queryResolver) ScrapeSingleMovie(ctx context.Context, source scraper.So
 }
 
 func (r *queryResolver) ScrapeSingleGroup(ctx context.Context, source scraper.Source, input ScrapeSingleGroupInput) ([]*models.ScrapedGroup, error) {
-	return nil, ErrNotSupported
+	if source.StashBoxIndex != nil || source.StashBoxEndpoint != nil {
+		return nil, ErrNotSupported
+	}
+	if source.ScraperID == nil {
+		return nil, fmt.Errorf("%w: scraper_id must be set", ErrInput)
+	}
+	provided := 0
+	if input.Query != nil {
+		provided++
+	}
+	if input.GroupInput != nil {
+		provided++
+	}
+	if input.GroupID != nil {
+		provided++
+	}
+	if provided != 1 {
+		return nil, fmt.Errorf("%w: exactly one group input is required", ErrInput)
+	}
+
+	switch {
+	case input.Query != nil:
+		logger.Infof("Group scraper name search: scraper=%s query=%q", *source.ScraperID, *input.Query)
+		content, err := r.scraperCache().ScrapeName(ctx, *source.ScraperID, *input.Query, scraper.ScrapeContentTypeGroup)
+		if err != nil {
+			logger.Errorf("Group scraper name search failed: scraper=%s query=%q error=%v", *source.ScraperID, *input.Query, err)
+			return nil, err
+		}
+		logger.Infof("Group scraper name search complete: scraper=%s query=%q results=%d", *source.ScraperID, *input.Query, len(content))
+		return marshalScrapedGroups(content)
+	case input.GroupInput != nil:
+		groupInput := scraper.ScrapedGroupInput{
+			Name: input.GroupInput.Name, Aliases: input.GroupInput.Aliases,
+			Duration: input.GroupInput.Duration, Date: input.GroupInput.Date,
+			Rating: input.GroupInput.Rating, Director: input.GroupInput.Director,
+			URLs: input.GroupInput.URLs, Synopsis: input.GroupInput.Synopsis,
+		}
+		content, err := r.scraperCache().ScrapeFragment(ctx, *source.ScraperID, scraper.Input{Group: &groupInput})
+		if err != nil {
+			return nil, err
+		}
+		return marshalScrapedGroups([]scraper.ScrapedContent{content})
+	case input.GroupID != nil:
+		groupID, err := strconv.Atoi(*input.GroupID)
+		if err != nil {
+			return nil, fmt.Errorf("%w: group id is not an integer: '%s'", ErrInput, *input.GroupID)
+		}
+		group, err := r.repository.Group.Find(ctx, groupID)
+		if err != nil {
+			return nil, err
+		}
+		if group == nil {
+			return nil, fmt.Errorf("%w: group not found: %s", ErrInput, *input.GroupID)
+		}
+		urls := group.URLs.List()
+		groupInput := scraper.ScrapedGroupInput{Name: &group.Name, URLs: urls}
+		content, err := r.scraperCache().ScrapeFragment(ctx, *source.ScraperID, scraper.Input{Group: &groupInput})
+		if err != nil {
+			return nil, err
+		}
+		return marshalScrapedGroups([]scraper.ScrapedContent{content})
+	default:
+		return nil, ErrNotImplemented
+	}
 }

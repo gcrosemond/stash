@@ -39,6 +39,8 @@ type ScrapedGroup {
   aliases: String
   duration: String
   date: String
+  "Containing group name when provided by a scraper"
+  containing_group: String
   rating: String
   director: String
   urls: [String!]
