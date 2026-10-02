@@ -5,12 +5,15 @@ import * as yup from "yup";
 import Mousetrap from "mousetrap";
 import {
   queryScrapeGroupURL,
+  queryScrapeGroup,
+  queryFindGroupsForSelect,
+  mutateReloadScrapers,
   useListGroupScrapers,
 } from "src/core/StashService";
 import { LoadingIndicator } from "src/components/Shared/LoadingIndicator";
 import { DetailsEditNavbar } from "src/components/Shared/DetailsEditNavbar";
 import { useToast } from "src/hooks/Toast";
-import { Modal as BSModal, Form, Button } from "react-bootstrap";
+import { Modal as BSModal, Form, Button, ButtonGroup } from "react-bootstrap";
 import TextUtils from "src/utils/text";
 import ImageUtils from "src/utils/image";
 import { useFormik } from "formik";
@@ -28,11 +31,16 @@ import { Studio, StudioSelect } from "src/components/Studios/StudioSelect";
 import { useTagsEdit } from "src/hooks/tagsEdit";
 import { Group } from "src/components/Groups/GroupSelect";
 import { RelatedGroupTable, IRelatedGroupEntry } from "./RelatedGroupTable";
+import { ListFilterModel } from "src/models/list-filter/filter";
 import {
   CustomFieldsInput,
   formatCustomFieldInput,
 } from "src/components/Shared/CustomFields";
 import cloneDeep from "lodash-es/cloneDeep";
+import { GroupScrapeModal } from "./GroupScrapeModal";
+import { ScraperMenu } from "src/components/Shared/ScraperMenu";
+import { Icon } from "src/components/Shared/Icon";
+import { faSearch } from "@fortawesome/free-solid-svg-icons";
 
 interface IGroupEditPanel {
   group: Partial<GQL.GroupDataFragment>;
@@ -65,6 +73,23 @@ export const GroupEditPanel: React.FC<IGroupEditPanel> = ({
 
   const Scrapers = useListGroupScrapers();
   const [scrapedGroup, setScrapedGroup] = useState<GQL.ScrapedGroup>();
+  const [scraper, setScraper] = useState<GQL.Scraper>();
+  const [isScraperModalOpen, setIsScraperModalOpen] = useState(false);
+
+  const fragmentScrapers = useMemo(
+    () =>
+      Scrapers?.data?.listScrapers?.filter((s) =>
+        s.group?.supported_scrapes.includes(GQL.ScrapeType.Fragment)
+      ) ?? [],
+    [Scrapers.data?.listScrapers]
+  );
+  const queryableScrapers = useMemo(
+    () =>
+      Scrapers?.data?.listScrapers?.filter((s) =>
+        s.group?.supported_scrapes.includes(GQL.ScrapeType.Name)
+      ) ?? [],
+    [Scrapers.data?.listScrapers]
+  );
 
   const [studio, setStudio] = useState<Studio | null>(null);
   const [containingGroups, setContainingGroups] = useState<Group[]>([]);
@@ -172,7 +197,7 @@ export const GroupEditPanel: React.FC<IGroupEditPanel> = ({
     };
   });
 
-  function updateGroupEditStateFromScraper(
+  async function updateGroupEditStateFromScraper(
     state: Partial<GQL.ScrapedGroupDataFragment>
   ) {
     if (state.name) {
@@ -184,14 +209,18 @@ export const GroupEditPanel: React.FC<IGroupEditPanel> = ({
     }
 
     if (state.duration) {
-      const seconds = TextUtils.timestampToSeconds(state.duration);
-      if (seconds) {
+      const seconds = TextUtils.durationToSeconds(state.duration);
+      if (seconds !== null) {
         formik.setFieldValue("duration", seconds);
       }
     }
 
     if (state.date) {
       formik.setFieldValue("date", state.date);
+    }
+
+    if (state.containing_group?.trim()) {
+      await setContainingGroupFromScrape(state.containing_group);
     }
 
     if (state.studio?.stored_id) {
@@ -220,6 +249,55 @@ export const GroupEditPanel: React.FC<IGroupEditPanel> = ({
     if (state.back_image) {
       // image is a base64 string
       formik.setFieldValue("back_image", state.back_image);
+    }
+  }
+
+  async function setContainingGroupFromScrape(containingGroupName: string) {
+    const normalizedName = containingGroupName.trim();
+    if (!normalizedName) return;
+
+    if (
+      group.id &&
+      group.name?.trim().toLocaleLowerCase() ===
+        normalizedName.toLocaleLowerCase()
+    ) {
+      Toast.error(new Error("A group cannot contain itself"));
+      return;
+    }
+
+    const filter = new ListFilterModel(GQL.FilterMode.Groups);
+    filter.searchTerm = normalizedName;
+    filter.itemsPerPage = 100;
+
+    try {
+      const result = await queryFindGroupsForSelect(filter);
+      const containingGroup = result.data.findGroups.groups.find(
+        (candidate) =>
+          candidate.name.trim().toLocaleLowerCase() ===
+          normalizedName.toLocaleLowerCase()
+      );
+
+      if (!containingGroup) {
+        Toast.error(new Error(`Containing group not found: ${normalizedName}`));
+        return;
+      }
+
+      if (
+        formik.values.containing_groups.some(
+          (entry) => entry.group_id === containingGroup.id
+        )
+      ) {
+        return;
+      }
+
+      const newContainingGroups = [
+        ...formik.values.containing_groups,
+        { group_id: containingGroup.id, description: null },
+      ];
+      setContainingGroups([...containingGroups, containingGroup]);
+      formik.setFieldValue("containing_groups", newContainingGroups);
+    } catch (e) {
+      Toast.error(e);
     }
   }
 
@@ -257,17 +335,146 @@ export const GroupEditPanel: React.FC<IGroupEditPanel> = ({
         return;
       }
 
-      // if this is a new group, just dump the data
-      if (isNew) {
-        updateGroupEditStateFromScraper(result.data.scrapeGroupURL);
-      } else {
-        setScrapedGroup(result.data.scrapeGroupURL);
-      }
+      setScrapedGroup(result.data.scrapeGroupURL);
     } catch (e) {
       Toast.error(e);
     } finally {
       setIsLoading(false);
     }
+  }
+
+  function openScrapeReview(
+    result: GQL.ScrapedGroup,
+    selectedScraper: GQL.Scraper
+  ) {
+    setIsScraperModalOpen(false);
+    setScraper(selectedScraper);
+    setScrapedGroup(result);
+  }
+
+  async function onSelectScrapedGroup(
+    result: GQL.ScrapedGroup,
+    selectedScraper: GQL.Scraper
+  ) {
+    const canEnrich =
+      result.urls?.length &&
+      selectedScraper.group?.supported_scrapes.includes(
+        GQL.ScrapeType.Fragment
+      );
+
+    if (!canEnrich) {
+      openScrapeReview(result, selectedScraper);
+      return;
+    }
+
+    setIsScraperModalOpen(false);
+    setIsLoading(true);
+    try {
+      const enriched = await queryScrapeGroup(selectedScraper.id, {
+        name: result.name,
+        urls: result.urls,
+      });
+      openScrapeReview(
+        enriched.data?.scrapeSingleGroup?.[0] ?? result,
+        selectedScraper
+      );
+    } catch (e) {
+      Toast.error(e);
+      openScrapeReview(result, selectedScraper);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function onScrapeGroupFragment(selectedScraper: GQL.Scraper) {
+    setIsLoading(true);
+    try {
+      const result = await queryScrapeGroup(selectedScraper.id, {
+        name: formik.values.name,
+        aliases: formik.values.aliases,
+        duration: formik.values.duration?.toString(),
+        date: formik.values.date,
+        director: formik.values.director,
+        urls: formik.values.urls,
+        synopsis: formik.values.synopsis,
+      });
+      const scraped = result.data?.scrapeSingleGroup?.[0];
+      if (scraped) openScrapeReview(scraped, selectedScraper);
+    } catch (e) {
+      Toast.error(e);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  function selectedScraper(source: GQL.ScraperSourceInput) {
+    return queryableScrapers
+      .concat(fragmentScrapers)
+      .find((s) => s.id === source.scraper_id);
+  }
+
+  function onFragmentScraperClicked(source: GQL.ScraperSourceInput) {
+    const selected = selectedScraper(source);
+    if (!selected) return;
+
+    const scraperURLPatterns = selected.group?.urls ?? [];
+    const hasMatchingURL = formik.values.urls.some((groupURL) =>
+      scraperURLPatterns.some((pattern) => groupURL.includes(pattern))
+    );
+
+    // Only use fragment scraping when the group has a URL belonging to this
+    // scraper. Otherwise, fall back to name search instead of sending an
+    // unrelated URL or an unresolved {url} placeholder.
+    if (!hasMatchingURL) {
+      setScraper(selected);
+      setIsScraperModalOpen(true);
+      return;
+    }
+
+    onScrapeGroupFragment(selected);
+  }
+
+  function onQueryScraperClicked(source: GQL.ScraperSourceInput) {
+    const selected = selectedScraper(source);
+    if (!selected) return;
+
+    setScraper(selected);
+    setIsScraperModalOpen(true);
+  }
+
+  async function onReloadScrapers() {
+    setIsLoading(true);
+    try {
+      await mutateReloadScrapers();
+    } catch (e) {
+      Toast.error(e);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  function renderScraperMenu() {
+    if (!fragmentScrapers.length && !queryableScrapers.length) {
+      return null;
+    }
+
+    return (
+      <ButtonGroup className="scraper-group">
+        <ScraperMenu
+          toggle={<FormattedMessage id="actions.scrape_with" />}
+          scrapers={fragmentScrapers}
+          onScraperClicked={onFragmentScraperClicked}
+          onReloadScrapers={onReloadScrapers}
+        />
+        <ScraperMenu
+          variant="secondary"
+          toggle={<Icon icon={faSearch} />}
+          scrapers={queryableScrapers}
+          onScraperClicked={onQueryScraperClicked}
+          onReloadScrapers={onReloadScrapers}
+        />
+      </ButtonGroup>
+    );
   }
 
   function urlScrapable(scrapedUrl: string) {
@@ -296,19 +503,25 @@ export const GroupEditPanel: React.FC<IGroupEditPanel> = ({
     return (
       <GroupScrapeDialog
         group={currentGroup}
+        existingContainingGroup={containingGroups[0]}
         groupStudio={studio}
         groupTags={tags}
         scraped={scrapedGroup}
         onClose={(m) => {
-          onScrapeDialogClosed(m);
+          void onScrapeDialogClosed(m);
         }}
       />
     );
   }
 
-  function onScrapeDialogClosed(p?: GQL.ScrapedGroupDataFragment) {
+  async function onScrapeDialogClosed(p?: GQL.ScrapedGroupDataFragment) {
     if (p) {
-      updateGroupEditStateFromScraper(p);
+      setIsLoading(true);
+      try {
+        await updateGroupEditStateFromScraper(p);
+      } finally {
+        setIsLoading(false);
+      }
     }
     setScrapedGroup(undefined);
   }
@@ -459,6 +672,8 @@ export const GroupEditPanel: React.FC<IGroupEditPanel> = ({
         </h2>
       )}
 
+      {renderScraperMenu()}
+
       <Prompt
         when={formik.dirty}
         message={(location, action) => {
@@ -512,6 +727,14 @@ export const GroupEditPanel: React.FC<IGroupEditPanel> = ({
         onDelete={onDelete}
       />
 
+      {scraper && isScraperModalOpen ? (
+        <GroupScrapeModal
+          scraper={scraper}
+          name={formik.values.name}
+          onHide={() => setIsScraperModalOpen(false)}
+          onSelectGroup={onSelectScrapedGroup}
+        />
+      ) : null}
       {maybeRenderScrapeDialog()}
       {renderImageAlert()}
     </div>

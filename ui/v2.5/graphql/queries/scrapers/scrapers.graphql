@@ -53,6 +53,15 @@ query ListGroupScrapers {
   }
 }
 
+query ScrapeSingleGroup(
+  $source: ScraperSourceInput!
+  $input: ScrapeSingleGroupInput!
+) {
+  scrapeSingleGroup(source: $source, input: $input) {
+    ...ScrapedGroupData
+  }
+}
+
 query ScrapeSingleStudio(
   $source: ScraperSourceInput!
   $input: ScrapeSingleStudioInput!
