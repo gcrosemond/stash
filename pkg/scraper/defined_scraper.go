@@ -39,6 +39,8 @@ func (g definedScraper) fragmentScraper(input Input) *ByFragmentDefinition {
 		return g.config.ImageByFragment
 	case input.Scene != nil:
 		return g.config.SceneByQueryFragment
+	case input.Group != nil:
+		return g.config.GroupByFragment
 	}
 
 	return nil
@@ -52,6 +54,9 @@ func (g definedScraper) viaFragment(ctx context.Context, client *http.Client, in
 		// to an URL scrape if it's present.
 		if input.Performer != nil && input.Performer.URL != nil && *input.Performer.URL != "" {
 			return g.viaURL(ctx, client, *input.Performer.URL, ScrapeContentTypePerformer)
+		}
+		if input.Group != nil && len(input.Group.URLs) > 0 && input.Group.URLs[0] != "" {
+			return g.viaURL(ctx, client, input.Group.URLs[0], ScrapeContentTypeGroup)
 		}
 
 		return nil, ErrNotSupported
@@ -133,6 +138,13 @@ func (g definedScraper) viaName(ctx context.Context, client *http.Client, name s
 		}
 
 		s := g.config.getNameScraper(*g.config.PerformerByName, client, g.globalConf)
+		return s.scrapeByName(ctx, name, ty)
+	case ScrapeContentTypeGroup:
+		if g.config.GroupByName == nil {
+			break
+		}
+
+		s := g.config.getNameScraper(*g.config.GroupByName, client, g.globalConf)
 		return s.scrapeByName(ctx, name, ty)
 	case ScrapeContentTypeScene:
 		if g.config.SceneByName == nil {

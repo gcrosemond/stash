@@ -171,8 +171,10 @@ func (c *Cache) ReloadScrapers() {
 
 	// Add built-in scrapers
 	freeOnes := getFreeonesScraper(c.globalConfig)
+	adultFilmIndex := getAdultFilmIndexScraper(c.globalConfig)
 	autoTag := getAutoTagScraper(c.repository, c.globalConfig)
 	scrapers[freeOnes.spec().ID] = freeOnes
+	scrapers[adultFilmIndex.spec().ID] = adultFilmIndex
 	scrapers[autoTag.spec().ID] = autoTag
 
 	logger.Debugf("Reading scraper configs from %s", path)

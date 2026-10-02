@@ -46,6 +46,10 @@ func extractHostname(urlStr string) string {
 
 type isMultiFunc func(key string) bool
 
+type mappedAttributeQuery interface {
+	runQueryAttribute(selector string, attribute string) ([]string, error)
+}
+
 func (s mappedConfig) process(ctx context.Context, q mappedQuery, common commonMappedConfig, isMulti isMultiFunc) mappedResults {
 	var ret mappedResults
 
@@ -65,10 +69,22 @@ func (s mappedConfig) process(ctx context.Context, q mappedQuery, common commonM
 			selector = strings.ReplaceAll(selector, "{inputURL}", q.getURL())
 			selector = strings.ReplaceAll(selector, "{inputHostname}", extractHostname(q.getURL()))
 
-			found, err := q.runQuery(selector)
+			var found []string
+			var err error
+			if attrConfig.Attribute != "" {
+				attributeQuery, ok := q.(mappedAttributeQuery)
+				if !ok {
+					err = errors.New("attribute extraction is not supported by this scraper")
+				} else {
+					found, err = attributeQuery.runQueryAttribute(selector, attrConfig.Attribute)
+				}
+			} else {
+				found, err = q.runQuery(selector)
+			}
 			if err != nil {
 				logger.Warnf("key '%v': %v", k, err)
 			}
+			logger.Tracef("Mapped scraper field: key=%s selector=%q values=%d", k, selector, len(found))
 
 			if len(found) > 0 {
 				result := s.postProcess(ctx, q, attrConfig, found)
@@ -413,6 +429,7 @@ func (s *mappedMovieScraperConfig) UnmarshalYAML(unmarshal func(interface{}) err
 
 type mappedScraperAttrConfig struct {
 	Selector    string                    `yaml:"selector"`
+	Attribute   string                    `yaml:"attribute"`
 	Fixed       string                    `yaml:"fixed"`
 	PostProcess []mappedPostProcessAction `yaml:"postProcess"`
 	Concat      string                    `yaml:"concat"`

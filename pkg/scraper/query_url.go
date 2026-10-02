@@ -56,6 +56,29 @@ func queryURLParametersFromScrapedScene(scene models.ScrapedSceneInput) queryURL
 	return ret
 }
 
+func queryURLParametersFromScrapedGroup(group ScrapedGroupInput) queryURLParameters {
+	ret := make(queryURLParameters)
+	setField := func(field string, value *string) {
+		if value != nil {
+			ret[field] = *value
+		}
+	}
+
+	setField("name", group.Name)
+	setField("aliases", group.Aliases)
+	setField("duration", group.Duration)
+	setField("date", group.Date)
+	setField("rating", group.Rating)
+	setField("director", group.Director)
+	setField("synopsis", group.Synopsis)
+	if len(group.URLs) > 0 {
+		ret["url"] = group.URLs[0]
+	} else {
+		setField("url", group.URL)
+	}
+	return ret
+}
+
 func queryURLParameterFromURL(url string) queryURLParameters {
 	ret := make(queryURLParameters)
 	ret["url"] = url

@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useIntl } from "react-intl";
 import * as GQL from "src/core/generated-graphql";
 import {
+  ScrapeDialogRow,
   ScrapedInputGroupRow,
   ScrapedImageRow,
   ScrapedTextAreaRow,
@@ -14,14 +15,25 @@ import {
   ScrapeResult,
 } from "src/components/Shared/ScrapeDialog/scrapeResult";
 import { Studio } from "src/components/Studios/StudioSelect";
+import { Group, GroupSelect } from "src/components/Groups/GroupSelect";
 import { useCreateScrapedStudio } from "src/components/Shared/ScrapeDialog/createObjects";
-import { ScrapedStudioRow } from "src/components/Shared/ScrapeDialog/ScrapedObjectsRow";
+import {
+  NewScrapedObjects,
+  ScrapedStudioRow,
+} from "src/components/Shared/ScrapeDialog/ScrapedObjectsRow";
 import { uniq } from "lodash-es";
 import { Tag } from "src/components/Tags/TagSelect";
 import { useScrapedTags } from "src/components/Shared/ScrapeDialog/scrapedTags";
+import {
+  queryFindGroupsForSelect,
+  useGroupCreate,
+} from "src/core/StashService";
+import { useToast } from "src/hooks/Toast";
+import { ListFilterModel } from "src/models/list-filter/filter";
 
 interface IGroupScrapeDialogProps {
   group: Partial<GQL.GroupUpdateInput>;
+  existingContainingGroup?: Group;
   groupStudio: Studio | null;
   groupTags: Tag[];
   scraped: GQL.ScrapedGroup;
@@ -31,12 +43,15 @@ interface IGroupScrapeDialogProps {
 
 export const GroupScrapeDialog: React.FC<IGroupScrapeDialogProps> = ({
   group,
+  existingContainingGroup,
   groupStudio,
   groupTags,
   scraped,
   onClose,
 }) => {
   const intl = useIntl();
+  const Toast = useToast();
+  const [createGroup] = useGroupCreate();
 
   const [name, setName] = useState<ScrapeResult<string>>(
     new ScrapeResult<string>(group.name, scraped.name)
@@ -47,14 +62,33 @@ export const GroupScrapeDialog: React.FC<IGroupScrapeDialogProps> = ({
   const [duration, setDuration] = useState<ScrapeResult<string>>(
     new ScrapeResult<string>(
       TextUtils.secondsToTimestamp(group.duration || 0),
-      // convert seconds to string if it's a number
-      scraped.duration && !Number.isNaN(Number(scraped.duration))
-        ? TextUtils.secondsToTimestamp(parseInt(scraped.duration, 10))
-        : scraped.duration
+      (() => {
+        const seconds = TextUtils.durationToSeconds(scraped.duration);
+        return seconds === null
+          ? scraped.duration
+          : TextUtils.secondsToTimestamp(seconds);
+      })()
     )
   );
   const [date, setDate] = useState<ScrapeResult<string>>(
     new ScrapeResult<string>(group.date, scraped.date)
+  );
+  const scrapedContainingGroup = scraped.containing_group
+    ? { name: scraped.containing_group }
+    : undefined;
+  const [containingGroup, setContainingGroup] = useState<
+    ObjectScrapeResult<GQL.ScrapedGroup>
+  >(
+    new ObjectScrapeResult<GQL.ScrapedGroup>(
+      existingContainingGroup
+        ? {
+            stored_id: existingContainingGroup.id,
+            name: existingContainingGroup.name,
+          }
+        : undefined,
+      scrapedContainingGroup,
+      !!scrapedContainingGroup
+    )
   );
   const [director, setDirector] = useState<ScrapeResult<string>>(
     new ScrapeResult<string>(group.director, scraped.director)
@@ -91,12 +125,104 @@ export const GroupScrapeDialog: React.FC<IGroupScrapeDialogProps> = ({
   const [newStudio, setNewStudio] = useState<GQL.ScrapedStudio | undefined>(
     scraped.studio && !scraped.studio.stored_id ? scraped.studio : undefined
   );
+  const [newContainingGroup, setNewContainingGroup] = useState<
+    GQL.ScrapedGroup | undefined
+  >(scrapedContainingGroup);
+
+  useEffect(() => {
+    const name = scraped.containing_group?.trim();
+    if (!name) return;
+
+    let cancelled = false;
+    const filter = new ListFilterModel(GQL.FilterMode.Groups);
+    filter.searchTerm = name;
+    filter.itemsPerPage = 100;
+
+    queryFindGroupsForSelect(filter)
+      .then((result) => {
+        if (cancelled) return;
+
+        const existing = result.data.findGroups.groups.find(
+          (candidate) =>
+            candidate.name.trim().toLocaleLowerCase() ===
+            name.toLocaleLowerCase()
+        );
+        if (!existing) return;
+
+        setContainingGroup((current) => {
+          if (current.newValue?.stored_id) return current;
+          return current.cloneWithValue({
+            stored_id: existing.id,
+            name: existing.name,
+          });
+        });
+        setNewContainingGroup(undefined);
+      })
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [scraped.containing_group]);
 
   const createNewStudio = useCreateScrapedStudio({
     scrapeResult: studio,
     setScrapeResult: setStudio,
     setNewObject: setNewStudio,
   });
+
+  async function createNewContainingGroup(toCreate: GQL.ScrapedGroup) {
+    try {
+      const result = await createGroup({
+        variables: { input: { name: toCreate.name ?? "" } },
+      });
+      const created = result.data?.groupCreate;
+      if (!created) return;
+
+      setContainingGroup(
+        containingGroup.cloneWithValue({
+          stored_id: created.id,
+          name: created.name,
+        })
+      );
+      setNewContainingGroup(undefined);
+    } catch (e) {
+      Toast.error(e);
+    }
+  }
+
+  function renderContainingGroup(
+    result: ObjectScrapeResult<GQL.ScrapedGroup>,
+    isNew?: boolean,
+    onChangeFn?: (value: GQL.ScrapedGroup) => void
+  ) {
+    const value = isNew ? result.newValue : result.originalValue;
+    const selectValue = value?.stored_id
+      ? [
+          {
+            id: value.stored_id,
+            name: value.name ?? "",
+            aliases: null,
+          },
+        ]
+      : [];
+
+    return (
+      <GroupSelect
+        className="form-control react-select"
+        isDisabled={!isNew}
+        values={selectValue}
+        onSelect={(items) => {
+          if (onChangeFn && items[0]) {
+            onChangeFn({
+              stored_id: items[0].id,
+              name: items[0].name,
+            });
+          }
+        }}
+      />
+    );
+  }
 
   const { tags, newTags, scrapedTagsRow, linkDialog } = useScrapedTags(
     groupTags,
@@ -108,6 +234,7 @@ export const GroupScrapeDialog: React.FC<IGroupScrapeDialogProps> = ({
     aliases,
     duration,
     date,
+    containingGroup,
     director,
     synopsis,
     studio,
@@ -135,6 +262,7 @@ export const GroupScrapeDialog: React.FC<IGroupScrapeDialogProps> = ({
       aliases: aliases.getNewValue(),
       duration: durationString,
       date: date.getNewValue(),
+      containing_group: containingGroup.getNewValue()?.name,
       director: director.getNewValue(),
       synopsis: synopsis.getNewValue(),
       studio: newStudioValue,
@@ -172,6 +300,25 @@ export const GroupScrapeDialog: React.FC<IGroupScrapeDialogProps> = ({
           placeholder="YYYY-MM-DD"
           result={date}
           onChange={(value) => setDate(value)}
+        />
+        <ScrapeDialogRow
+          field="containing_group"
+          title={intl.formatMessage({ id: "containing_group" })}
+          result={containingGroup}
+          onChange={(value) => setContainingGroup(value)}
+          originalField={renderContainingGroup(containingGroup)}
+          newField={renderContainingGroup(containingGroup, true, (value) =>
+            setContainingGroup(containingGroup.cloneWithValue(value))
+          )}
+          newValues={
+            newContainingGroup ? (
+              <NewScrapedObjects
+                newValues={[newContainingGroup]}
+                onCreateNew={createNewContainingGroup}
+                getName={(value) => value.name ?? ""}
+              />
+            ) : undefined
+          }
         />
         <ScrapedInputGroupRow
           field="director"

@@ -364,10 +364,14 @@ func (s *scriptScraper) scrape(ctx context.Context, command []string, input stri
 		var scene *models.ScrapedScene
 		err := s.runScraperScript(ctx, command, input, &scene)
 		return scene, err
-	case ScrapeContentTypeMovie, ScrapeContentTypeGroup:
+	case ScrapeContentTypeMovie:
 		var movie *models.ScrapedMovie
 		err := s.runScraperScript(ctx, command, input, &movie)
 		return movie, err
+	case ScrapeContentTypeGroup:
+		var group *models.ScrapedGroup
+		err := s.runScraperScript(ctx, command, input, &group)
+		return group, err
 	case ScrapeContentTypeImage:
 		var image *models.ScrapedImage
 		err := s.runScraperScript(ctx, command, input, &image)
@@ -403,6 +407,15 @@ func (s *scriptNameScraper) scrapeByName(ctx context.Context, name string, ty Sc
 		if err == nil {
 			for _, s := range scenes {
 				v := s
+				ret = append(ret, &v)
+			}
+		}
+	case ScrapeContentTypeGroup:
+		var groups []models.ScrapedGroup
+		err = s.runScraperScript(ctx, s.definition.Script, input, &groups)
+		if err == nil {
+			for _, g := range groups {
+				v := g
 				ret = append(ret, &v)
 			}
 		}
@@ -444,6 +457,9 @@ func (s *scriptFragmentScraper) scrapeByFragment(ctx context.Context, input Inpu
 	case input.Image != nil:
 		inString, err = json.Marshal(*input.Image)
 		ty = ScrapeContentTypeImage
+	case input.Group != nil:
+		inString, err = json.Marshal(*input.Group)
+		ty = ScrapeContentTypeGroup
 	}
 
 	if err != nil {

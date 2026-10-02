@@ -239,16 +239,17 @@ func (r mappedResult) scrapedMovie() *models.ScrapedMovie {
 
 func (r mappedResult) scrapedGroup() *models.ScrapedGroup {
 	ret := &models.ScrapedGroup{
-		Name:       r.stringPtr("Name"),
-		Aliases:    r.stringPtr("Aliases"),
-		URL:        r.stringPtr("URL"),
-		URLs:       r.stringSlice("URLs"),
-		Duration:   r.stringPtr("Duration"),
-		Date:       r.stringPtr("Date"),
-		Director:   r.stringPtr("Director"),
-		Synopsis:   r.stringPtr("Synopsis"),
-		FrontImage: r.stringPtr("FrontImage"),
-		BackImage:  r.stringPtr("BackImage"),
+		Name:            r.stringPtr("Name"),
+		Aliases:         r.stringPtr("Aliases"),
+		URL:             r.stringPtr("URL"),
+		URLs:            r.stringSlice("URLs"),
+		Duration:        r.stringPtr("Duration"),
+		Date:            r.stringPtr("Date"),
+		ContainingGroup: r.stringPtr("ContainingGroup"),
+		Director:        r.stringPtr("Director"),
+		Synopsis:        r.stringPtr("Synopsis"),
+		FrontImage:      r.stringPtr("FrontImage"),
+		BackImage:       r.stringPtr("BackImage"),
 	}
 
 	return ret

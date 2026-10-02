@@ -2499,6 +2499,30 @@ export const mutateStashBoxBatchTagTag = (input: GQL.StashBoxBatchTagInput) =>
 
 export const useListGroupScrapers = () => GQL.useListGroupScrapersQuery();
 
+export const useScrapeGroupList = (scraperId: string, q: string) =>
+  GQL.useScrapeSingleGroupQuery({
+    variables: {
+      source: { scraper_id: scraperId },
+      input: { query: q },
+    },
+    skip: q === "",
+    fetchPolicy: "network-only",
+    notifyOnNetworkStatusChange: true,
+  });
+
+export const queryScrapeGroup = (
+  scraperId: string,
+  groupInput: GQL.ScrapedGroupInput
+) =>
+  client.query<GQL.ScrapeSingleGroupQuery>({
+    query: GQL.ScrapeSingleGroupDocument,
+    variables: {
+      source: { scraper_id: scraperId },
+      input: { group_input: groupInput },
+    },
+    fetchPolicy: "network-only",
+  });
+
 export const queryScrapeGroupURL = (url: string) =>
   client.query<GQL.ScrapeGroupUrlQuery>({
     query: GQL.ScrapeGroupUrlDocument,
