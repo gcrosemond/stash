@@ -89,6 +89,11 @@ func loadURL(ctx context.Context, loadURL string, client *http.Client, def Defin
 	if err != nil {
 		return nil, err
 	}
+	preview := strings.Join(strings.Fields(string(body)), " ")
+	if len(preview) > 240 {
+		preview = preview[:240] + "..."
+	}
+	logger.Tracef("[scraper] HTTP response: url=%s status=%d content_type=%q bytes=%d preview=%q", loadURL, resp.StatusCode, resp.Header.Get("Content-Type"), len(body), preview)
 
 	bodyReader := bytes.NewReader(body)
 	printCookies(jar, def, "Jar cookies found for scraper urls")

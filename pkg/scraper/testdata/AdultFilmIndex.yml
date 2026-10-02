@@ -1,4 +1,4 @@
-# Community-style AdultFilmIndex group scraper definition.
+# AdultFilmIndex group scraper test fixture.
 name: AdultFilmIndex
 driver:
   useSurf: true

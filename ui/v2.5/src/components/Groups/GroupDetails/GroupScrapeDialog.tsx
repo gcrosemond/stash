@@ -87,7 +87,7 @@ export const GroupScrapeDialog: React.FC<IGroupScrapeDialogProps> = ({
           }
         : undefined,
       scrapedContainingGroup,
-      !!scrapedContainingGroup
+      false
     )
   );
   const [director, setDirector] = useState<ScrapeResult<string>>(
