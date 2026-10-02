@@ -87,7 +87,7 @@ func TestInputPopulateGroupURL(t *testing.T) {
 }
 
 func TestAdultFilmIndexDefinitionLoads(t *testing.T) {
-	data, err := os.ReadFile(filepath.Join("..", "..", "scrapers", "AdultFilmIndex.yml"))
+	data, err := os.ReadFile(filepath.Join("testdata", "AdultFilmIndex.yml"))
 	require.NoError(t, err)
 
 	definition, err := loadConfigFromYAML("adultfilmindex", bytes.NewReader(data))
@@ -97,9 +97,9 @@ func TestAdultFilmIndexDefinitionLoads(t *testing.T) {
 	require.NotNil(t, definition.GroupByFragment)
 	require.NotEmpty(t, definition.GroupByURL)
 
-	builtin := getAdultFilmIndexScraper(mockGlobalConfig{})
-	require.Equal(t, AdultFilmIndexScraperID, builtin.spec().ID)
-	require.NotNil(t, builtin.spec().Group)
+	s := scraperFromDefinition(*definition, mockGlobalConfig{})
+	require.Equal(t, "adultfilmindex", s.spec().ID)
+	require.NotNil(t, s.spec().Group)
 }
 
 func TestAdultFilmIndexGroupSearchExtractsMovieResults(t *testing.T) {
@@ -117,7 +117,7 @@ func TestAdultFilmIndexGroupSearchExtractsMovieResults(t *testing.T) {
 	}))
 	defer server.Close()
 
-	data, err := os.ReadFile(filepath.Join("..", "..", "scrapers", "AdultFilmIndex.yml"))
+	data, err := os.ReadFile(filepath.Join("testdata", "AdultFilmIndex.yml"))
 	require.NoError(t, err)
 	definition, err := loadConfigFromYAML("adultfilmindex", bytes.NewReader(data))
 	require.NoError(t, err)
@@ -163,7 +163,7 @@ func TestAdultFilmIndexGroupPageExtractsDetails(t *testing.T) {
 	}))
 	defer server.Close()
 
-	data, err := os.ReadFile(filepath.Join("..", "..", "scrapers", "AdultFilmIndex.yml"))
+	data, err := os.ReadFile(filepath.Join("testdata", "AdultFilmIndex.yml"))
 	require.NoError(t, err)
 	definition, err := loadConfigFromYAML("adultfilmindex", bytes.NewReader(data))
 	require.NoError(t, err)
