@@ -29,6 +29,46 @@ const scrapeDefaultSleep = time.Second * 2
 
 var proxyAuthRE = regexp.MustCompile(`^(https?:\/\/)(([\P{Cc}]+):([\P{Cc}]+)@)?(([a-zA-Z0-9][a-zA-Z0-9.-]*)(:[0-9]{1,5})?)`)
 
+func runPreflight(ctx context.Context, client *http.Client, jar http.CookieJar, driverOptions *scraperDriverOptions, userAgent string) error {
+	if driverOptions == nil || len(driverOptions.Preflight) == 0 {
+		return nil
+	}
+
+	preflightClient := *client
+	preflightClient.Jar = jar
+	for _, preflightURL := range driverOptions.Preflight {
+		if strings.TrimSpace(preflightURL) == "" {
+			continue
+		}
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, preflightURL, nil)
+		if err != nil {
+			return fmt.Errorf("invalid preflight URL %q: %w", preflightURL, err)
+		}
+		if userAgent != "" {
+			req.Header.Set("User-Agent", userAgent)
+		}
+		for _, h := range driverOptions.Headers {
+			if h.Key != "" {
+				req.Header.Set(h.Key, h.Value)
+			}
+		}
+
+		resp, err := preflightClient.Do(req)
+		if err != nil {
+			return fmt.Errorf("preflight request failed for %q: %w", preflightURL, err)
+		}
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+		if resp.StatusCode >= 400 {
+			return fmt.Errorf("preflight URL %q returned HTTP %d: %s", preflightURL, resp.StatusCode, http.StatusText(resp.StatusCode))
+		}
+		logger.Debugf("[scraper] preflight complete: url=%s status=%d", preflightURL, resp.StatusCode)
+	}
+
+	return nil
+}
+
 func loadURL(ctx context.Context, loadURL string, client *http.Client, def Definition, globalConfig GlobalConfig) (io.Reader, error) {
 	driverOptions := def.DriverOptions
 	if driverOptions != nil {
@@ -48,6 +88,10 @@ func loadURL(ctx context.Context, loadURL string, client *http.Client, def Defin
 	jar, err := def.jar()
 	if err != nil {
 		return nil, fmt.Errorf("error creating cookie jar: %w", err)
+	}
+
+	if err := runPreflight(ctx, client, jar, driverOptions, globalConfig.GetScraperUserAgent()); err != nil {
+		return nil, err
 	}
 
 	u, err := url.Parse(loadURL)
@@ -89,6 +133,11 @@ func loadURL(ctx context.Context, loadURL string, client *http.Client, def Defin
 	if err != nil {
 		return nil, err
 	}
+	preview := strings.Join(strings.Fields(string(body)), " ")
+	if len(preview) > 240 {
+		preview = preview[:240] + "..."
+	}
+	logger.Tracef("[scraper] HTTP response: url=%s status=%d content_type=%q bytes=%d preview=%q", loadURL, resp.StatusCode, resp.Header.Get("Content-Type"), len(body), preview)
 
 	bodyReader := bytes.NewReader(body)
 	printCookies(jar, def, "Jar cookies found for scraper urls")
@@ -122,6 +171,10 @@ func urlFromSurf(ctx context.Context, loadURL string, driverOptions scraperDrive
 
 	// pass in jar directly
 	client.Jar = jar
+
+	if err := runPreflight(ctx, client, jar, &driverOptions, ""); err != nil {
+		return nil, err
+	}
 
 	// try to mimic normal method above
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, loadURL, nil)
@@ -286,17 +339,27 @@ func urlFromCDP(ctx context.Context, urlCDP string, driverOptions scraperDriverO
 		})
 	}
 
-	err := chromedp.Run(ctx,
+	navigation := chromedp.Tasks{
 		network.Enable(),
 		setCDPCookies(driverOptions),
 		printCDPCookies(driverOptions, "Cookies found"),
 		network.SetExtraHTTPHeaders(network.Headers(headers)),
+	}
+	for _, preflightURL := range driverOptions.Preflight {
+		if strings.TrimSpace(preflightURL) == "" {
+			continue
+		}
+		navigation = append(navigation, chromedp.Navigate(preflightURL), chromedp.Sleep(sleepDuration))
+	}
+	navigation = append(navigation,
 		chromedp.Navigate(urlCDP),
 		chromedp.Sleep(sleepDuration),
 		setCDPClicks(driverOptions),
 		chromedp.OuterHTML("html", &res, chromedp.ByQuery),
 		printCDPCookies(driverOptions, "Cookies set"),
 	)
+
+	err := chromedp.Run(ctx, navigation...)
 
 	if err != nil {
 		return nil, err

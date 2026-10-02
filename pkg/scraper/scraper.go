@@ -166,6 +166,7 @@ type Input struct {
 	Scene     *models.ScrapedSceneInput
 	Gallery   *models.ScrapedGalleryInput
 	Image     *models.ScrapedImageInput
+	Group     *ScrapedGroupInput
 }
 
 // populateURL populates the URL field of the input based on the
@@ -179,6 +180,9 @@ func (i *Input) populateURL() {
 	}
 	if i.Performer != nil && i.Performer.URL == nil && len(i.Performer.URLs) > 0 {
 		i.Performer.URL = &i.Performer.URLs[0]
+	}
+	if i.Group != nil && i.Group.URL == nil && len(i.Group.URLs) > 0 {
+		i.Group.URL = &i.Group.URLs[0]
 	}
 }
 

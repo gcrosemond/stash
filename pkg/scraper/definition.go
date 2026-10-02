@@ -58,6 +58,12 @@ type Definition struct {
 	// Configuration for querying a group by a URL
 	GroupByURL []*ByURLDefinition `yaml:"groupByURL"`
 
+	// Configuration for querying groups by name
+	GroupByName *ByNameDefinition `yaml:"groupByName"`
+
+	// Configuration for querying a group by a group fragment
+	GroupByFragment *ByFragmentDefinition `yaml:"groupByFragment"`
+
 	// Scraper debugging options
 	DebugOptions *scraperDebugOptions `yaml:"debug"`
 
@@ -81,6 +87,18 @@ func (c Definition) validate() error {
 
 	if c.PerformerByName != nil {
 		if err := c.PerformerByName.validate(); err != nil {
+			return err
+		}
+	}
+
+	if c.GroupByName != nil {
+		if err := c.GroupByName.validate(); err != nil {
+			return err
+		}
+	}
+
+	if c.GroupByFragment != nil {
+		if err := c.GroupByFragment.validate(); err != nil {
 			return err
 		}
 	}
@@ -210,12 +228,13 @@ type header struct {
 }
 
 type scraperDriverOptions struct {
-	UseCDP  bool             `yaml:"useCDP"`
-	UseSurf bool             `yaml:"useSurf"`
-	Sleep   int              `yaml:"sleep"`
-	Clicks  []*clickOptions  `yaml:"clicks"`
-	Cookies []*cookieOptions `yaml:"cookies"`
-	Headers []*header        `yaml:"headers"`
+	UseCDP    bool             `yaml:"useCDP"`
+	UseSurf   bool             `yaml:"useSurf"`
+	Sleep     int              `yaml:"sleep"`
+	Preflight []string         `yaml:"preflight"`
+	Clicks    []*clickOptions  `yaml:"clicks"`
+	Cookies   []*cookieOptions `yaml:"cookies"`
+	Headers   []*header        `yaml:"headers"`
 }
 
 func loadConfigFromYAML(id string, reader io.Reader) (*Definition, error) {
@@ -331,6 +350,12 @@ func (c Definition) spec() Scraper {
 	}
 
 	group := ScraperSpec{}
+	if c.GroupByName != nil {
+		group.SupportedScrapes = append(group.SupportedScrapes, ScrapeTypeName)
+	}
+	if c.GroupByFragment != nil {
+		group.SupportedScrapes = append(group.SupportedScrapes, ScrapeTypeFragment)
+	}
 	if len(c.MovieByURL) > 0 || len(c.GroupByURL) > 0 {
 		group.SupportedScrapes = append(group.SupportedScrapes, ScrapeTypeURL)
 		for _, v := range append(c.MovieByURL, c.GroupByURL...) {
@@ -357,7 +382,7 @@ func (c Definition) supports(ty ScrapeContentType) bool {
 	case ScrapeContentTypeImage:
 		return c.ImageByFragment != nil || len(c.ImageByURL) > 0
 	case ScrapeContentTypeMovie, ScrapeContentTypeGroup:
-		return len(c.MovieByURL) > 0 || len(c.GroupByURL) > 0
+		return c.GroupByName != nil || c.GroupByFragment != nil || len(c.MovieByURL) > 0 || len(c.GroupByURL) > 0
 	}
 
 	panic("Unhandled ScrapeContentType")

@@ -148,6 +148,15 @@ func (s *jsonNameScraper) scrapeByName(ctx context.Context, name string, ty Scra
 		}
 
 		return content, nil
+	case ScrapeContentTypeGroup:
+		groups, err := scraper.scrapeGroups(ctx, q)
+		if err != nil {
+			return nil, err
+		}
+		for _, g := range groups {
+			content = append(content, g)
+		}
+		return content, nil
 	case ScrapeContentTypeScene:
 		scenes, err := scraper.scrapeScenes(ctx, q)
 		if err != nil {
@@ -198,6 +207,22 @@ func (s *jsonFragmentScraper) scrapeByFragment(ctx context.Context, input Input)
 		return nil, fmt.Errorf("%w: cannot use a json scraper as a gallery fragment scraper", ErrNotSupported)
 	case input.Performer != nil:
 		return nil, fmt.Errorf("%w: cannot use a json scraper as a performer fragment scraper", ErrNotSupported)
+	case input.Group != nil:
+		group := *input.Group
+		queryURL := queryURLParametersFromScrapedGroup(group)
+		if s.definition.QueryURLReplacements != nil {
+			queryURL.applyReplacements(s.definition.QueryURLReplacements)
+		}
+		url := queryURL.constructURL(s.definition.QueryURL)
+		scraper, err := s.getJsonScraper(s.definition.Scraper)
+		if err != nil {
+			return nil, err
+		}
+		doc, err := s.loadURL(ctx, url)
+		if err != nil {
+			return nil, err
+		}
+		return scraper.scrapeGroup(ctx, s.getJsonQuery(doc, url))
 	case input.Scene == nil:
 		return nil, fmt.Errorf("%w: scene input is nil", ErrNotSupported)
 	}

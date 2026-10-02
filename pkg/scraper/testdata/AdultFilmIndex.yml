@@ -1,0 +1,95 @@
+# AdultFilmIndex group scraper test fixture.
+name: AdultFilmIndex
+driver:
+  useSurf: true
+groupByName:
+  action: scrapeXPath
+  queryURL: https://www.adultfilmindex.com/movie?q={}
+  scraper: adultFilmIndexGroupSearch
+groupByURL:
+  - action: scrapeXPath
+    url:
+      - adultfilmindex.com/movie/
+    scraper: adultFilmIndexGroupPage
+groupByFragment:
+  action: scrapeXPath
+  queryURL: "{url}"
+  scraper: adultFilmIndexGroupPage
+
+xPathScrapers:
+  adultFilmIndexGroupSearch:
+    group:
+      Name:
+        selector: //article[contains(concat(' ', normalize-space(@class), ' '), ' media ') and contains(concat(' ', normalize-space(@class), ' '), ' movie ')]/div[contains(concat(' ', normalize-space(@class), ' '), ' media-content ')]/h4[contains(concat(' ', normalize-space(@class), ' '), ' title ')]/a[1]
+        postProcess:
+          - replace:
+              - regex: "\\s+"
+                with: " "
+      URLs:
+        selector: //article[contains(concat(' ', normalize-space(@class), ' '), ' media ') and contains(concat(' ', normalize-space(@class), ' '), ' movie ')]/div[contains(concat(' ', normalize-space(@class), ' '), ' media-content ')]/h4[contains(concat(' ', normalize-space(@class), ' '), ' title ')]/a[1]/@href
+        postProcess:
+          - replace:
+              - regex: ^/
+                with: https://www.adultfilmindex.com/
+      FrontImage:
+        selector: //article[contains(concat(' ', normalize-space(@class), ' '), ' media ') and contains(concat(' ', normalize-space(@class), ' '), ' movie ')]
+        attribute: src
+      Date:
+        selector: //article[contains(concat(' ', normalize-space(@class), ' '), ' media ') and contains(concat(' ', normalize-space(@class), ' '), ' movie ')]/div[contains(concat(' ', normalize-space(@class), ' '), ' media-content ')]/h5[contains(concat(' ', normalize-space(@class), ' '), ' subtitle ')]
+        postProcess:
+          - replace:
+              - regex: "^\\s*([0-9]{4})\\s*\\|.*$"
+                with: "$1"
+      Duration:
+        selector: //article[contains(concat(' ', normalize-space(@class), ' '), ' media ') and contains(concat(' ', normalize-space(@class), ' '), ' movie ')]/div[contains(concat(' ', normalize-space(@class), ' '), ' media-content ')]/h5[contains(concat(' ', normalize-space(@class), ' '), ' subtitle ')][contains(., 'Runtime')]
+        postProcess:
+          - replace:
+              - regex: "^.*\\|\\s*Runtime:\\s*([^|]+?)\\s*\\|.*$"
+                with: "$1"
+      ContainingGroup:
+        selector: //article[contains(concat(' ', normalize-space(@class), ' '), ' media ') and contains(concat(' ', normalize-space(@class), ' '), ' movie ')]/div[contains(concat(' ', normalize-space(@class), ' '), ' media-content ')]/h5[contains(concat(' ', normalize-space(@class), ' '), ' subtitle ')]//span[contains(concat(' ', normalize-space(@class), ' '), ' js-link ')]
+      Studio:
+        Name: //article[contains(concat(' ', normalize-space(@class), ' '), ' media ') and contains(concat(' ', normalize-space(@class), ' '), ' movie ')]/div[contains(concat(' ', normalize-space(@class), ' '), ' media-content ')]/h5[contains(concat(' ', normalize-space(@class), ' '), ' subtitle ')]/a[contains(@href, '/studio/')][not(preceding-sibling::a[contains(@href, '/studio/')])]
+
+  adultFilmIndexGroupPage:
+    group:
+      Name:
+        selector: //h1 | //meta[@property='og:title']/@content
+        postProcess:
+          - replace:
+              - regex: "\\s+"
+                with: " "
+              - regex: "\\s+[-|].*$"
+                with: ""
+      URLs:
+        selector: //link[@rel='canonical']/@href | //h3[normalize-space()='More info:']/following-sibling::ul[1]//a/@href
+      Synopsis:
+        selector: //p[contains(concat(' ', normalize-space(@class), ' '), ' content ')][strong[normalize-space()='Description:']]
+        postProcess:
+          - replace:
+              - regex: "^Description:\\s*"
+                with: ""
+      Date:
+        selector: //h2[contains(concat(' ', normalize-space(@class), ' '), ' subtitle ')]
+        postProcess:
+          - replace:
+              - regex: "^\\s*([0-9]{4})\\s*\\|.*$"
+                with: "$1"
+      Duration:
+        selector: //h2[contains(concat(' ', normalize-space(@class), ' '), ' subtitle ')][contains(., 'Runtime')]
+        postProcess:
+          - replace:
+              - regex: "^.*\\|\\s*Runtime:\\s*([^|]+?)\\s*\\|.*$"
+                with: "$1"
+      ContainingGroup:
+        selector: //h2[contains(concat(' ', normalize-space(@class), ' '), ' subtitle ')][contains(., 'Series:')]
+        postProcess:
+          - replace:
+              - regex: "^.*\\|\\s*Series:\\s*([^|]+?)(\\s*\\|.*)?$"
+                with: "$1"
+      Studio:
+        Name: //h2[contains(concat(' ', normalize-space(@class), ' '), ' subtitle ')]/a[contains(@href, '/studio/')][not(preceding-sibling::a[contains(@href, '/studio/')])]
+      FrontImage:
+        selector: //meta[@property='og:image']/@content
+      BackImage:
+        selector: //a[@data-target='modal-back-cover']/@href

@@ -351,3 +351,29 @@ func (s mappedScraper) scrapeGroup(ctx context.Context, q mappedQuery) (*models.
 
 	return &ret, nil
 }
+
+func (s mappedScraper) scrapeGroups(ctx context.Context, q mappedQuery) ([]*models.ScrapedGroup, error) {
+	groupScraperConfig := s.Group
+	if groupScraperConfig == nil {
+		groupScraperConfig = s.Movie
+	}
+	if groupScraperConfig == nil || groupScraperConfig.mappedConfig == nil {
+		logger.Debugf("Mapped group scraper has no group mapping configuration")
+		return nil, nil
+	}
+
+	// Search results represent multiple groups, so URLs must stay aligned with
+	// each result instead of being collected into the first result.
+	results := groupScraperConfig.mappedConfig.process(ctx, q, s.Common, nil)
+	logger.Debugf("Mapped group scraper produced %d raw results", len(results))
+	ret := make([]*models.ScrapedGroup, 0, len(results))
+	studioResults := groupScraperConfig.Studio.process(ctx, q, s.Common, nil)
+	for i, result := range results {
+		group := result.scrapedGroup()
+		if i < len(studioResults) {
+			group.Studio = studioResults[i].scrapedStudio()
+		}
+		ret = append(ret, group)
+	}
+	return ret, nil
+}

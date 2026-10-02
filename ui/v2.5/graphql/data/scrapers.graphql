@@ -96,6 +96,7 @@ fragment ScrapedGroupData on ScrapedGroup {
   aliases
   duration
   date
+  containing_group
   rating
   director
   urls

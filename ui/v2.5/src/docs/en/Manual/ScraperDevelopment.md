@@ -613,6 +613,24 @@ Enabling `useSurf` driver will automatically remove the `User-Agent` [header](#h
 
 > **⚠️ Note:** Proxies that do not support SOCKS5 will not be able to take full advantage of TLS emulation and might fail in rare cases.
 
+### Preflight URLs
+
+Some websites require a preliminary request before their content can be
+accessed. For example, an age gate may set a session cookie after its
+acceptance URL is visited. Add one or more `preflight` URLs under `driver` to
+visit them in the same cookie/session context before each scraper request:
+
+```yaml
+driver:
+  useSurf: true
+  preflight:
+    - https://example.com/age-gate/accept
+```
+
+Preflight URLs are followed in order and their cookies are preserved for the
+actual search or page request. This works with the native HTTP client, Surf,
+and CDP. The preflight response itself is not scraped.
+
 ### Cookie support
 
 In some websites the use of cookies is needed to bypass a welcoming message or some other kind of protection. Stash supports the setting of cookies for the direct xpath scraper and the CDP based one. Due to implementation issues the usage varies a bit.

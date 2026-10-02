@@ -250,6 +250,48 @@ const timestampToSeconds = (v: string | null | undefined) => {
   return seconds + msFrac;
 };
 
+const durationToSeconds = (v: string | null | undefined) => {
+  if (!v) return null;
+
+  const value = v.trim();
+  const numeric = Number(value);
+  if (Number.isFinite(numeric)) return numeric;
+
+  if (value.includes(":")) return timestampToSeconds(value);
+
+  if (!/^(?:\s*\d+(?:\.\d+)?\s*(?:d|days?|h|hours?|hr|hrs|m|min|mins|minutes?|s|sec|secs|seconds?)\s*)+$/i.test(value)) {
+    return null;
+  }
+
+  let seconds = 0;
+  const unitSeconds: Record<string, number> = {
+    d: 86400,
+    day: 86400,
+    days: 86400,
+    h: 3600,
+    hour: 3600,
+    hours: 3600,
+    hr: 3600,
+    hrs: 3600,
+    m: 60,
+    min: 60,
+    mins: 60,
+    minute: 60,
+    minutes: 60,
+    s: 1,
+    sec: 1,
+    secs: 1,
+    second: 1,
+    seconds: 1,
+  };
+
+  for (const match of value.matchAll(/(\d+(?:\.\d+)?)\s*(d|days?|h|hours?|hr|hrs|m|min|mins|minutes?|s|sec|secs|seconds?)/gi)) {
+    seconds += Number(match[1]) * unitSeconds[match[2].toLowerCase()];
+  }
+
+  return seconds;
+};
+
 const fileNameFromPath = (path: string) => {
   if (!!path === false) return "No File Name";
   return path.replace(/^.*[\\/]/, "");
@@ -541,6 +583,7 @@ const TextUtils = {
   secondsToTimestamp,
   formatTimestampRange,
   timestampToSeconds,
+  durationToSeconds,
   fileNameFromPath,
   stringToDate,
   stringToFuzzyDate,
