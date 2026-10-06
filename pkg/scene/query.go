@@ -156,3 +156,44 @@ func CountByGroupID(ctx context.Context, r models.SceneQueryer, id int, depth *i
 
 	return r.QueryCount(ctx, filter, nil)
 }
+
+func CountMovieScenesByPerformerID(ctx context.Context, r models.SceneQueryer, id int) (int, error) {
+	movieType := models.SceneTypeMovie
+	filter := &models.SceneFilterType{
+		Type: &movieType,
+		Performers: &models.MultiCriterionInput{
+			Value:    []string{strconv.Itoa(id)},
+			Modifier: models.CriterionModifierIncludes,
+		},
+	}
+
+	return r.QueryCount(ctx, filter, nil)
+}
+
+func CountMovieScenesByStudioID(ctx context.Context, r models.SceneQueryer, id int, depth *int) (int, error) {
+	movieType := models.SceneTypeMovie
+	filter := &models.SceneFilterType{
+		Type: &movieType,
+		Studios: &models.HierarchicalMultiCriterionInput{
+			Value:    []string{strconv.Itoa(id)},
+			Modifier: models.CriterionModifierIncludes,
+			Depth:    depth,
+		},
+	}
+
+	return r.QueryCount(ctx, filter, nil)
+}
+
+func CountMovieScenesByGroupID(ctx context.Context, r models.SceneQueryer, id int, depth *int) (int, error) {
+	movieType := models.SceneTypeMovie
+	filter := &models.SceneFilterType{
+		Type: &movieType,
+		Groups: &models.HierarchicalMultiCriterionInput{
+			Value:    []string{strconv.Itoa(id)},
+			Modifier: models.CriterionModifierIncludes,
+			Depth:    depth,
+		},
+	}
+
+	return r.QueryCount(ctx, filter, nil)
+}

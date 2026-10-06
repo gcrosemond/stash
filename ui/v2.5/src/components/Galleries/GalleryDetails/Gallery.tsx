@@ -250,6 +250,11 @@ export const GalleryPage: React.FC<IProps> = ({ gallery, add }) => {
       return;
     }
 
+    const regularSceneCount = gallery.scenes.filter(
+      (scene) => scene.type !== GQL.SceneType.Movie
+    ).length;
+    const movieCount = gallery.scenes.length - regularSceneCount;
+
     return (
       <Tab.Container
         activeKey={activeTabKey}
@@ -262,13 +267,21 @@ export const GalleryPage: React.FC<IProps> = ({ gallery, add }) => {
                 <FormattedMessage id="details" />
               </Nav.Link>
             </Nav.Item>
-            {gallery.scenes.length >= 1 ? (
+            {regularSceneCount >= 1 ? (
               <Nav.Item>
                 <Nav.Link eventKey="gallery-scenes-panel">
                   <FormattedMessage
                     id="countables.scenes"
-                    values={{ count: gallery.scenes.length }}
+                    values={{ count: regularSceneCount }}
                   />
+                </Nav.Link>
+              </Nav.Item>
+            ) : undefined}
+            {movieCount >= 1 ? (
+              <Nav.Item>
+                <Nav.Link eventKey="gallery-movies-panel">
+                  <FormattedMessage id="movies" />
+                  <Counter count={movieCount} hideZero hideOne />
                 </Nav.Link>
               </Nav.Item>
             ) : undefined}
@@ -318,9 +331,14 @@ export const GalleryPage: React.FC<IProps> = ({ gallery, add }) => {
               onDelete={() => setIsDeleteAlertOpen(true)}
             />
           </Tab.Pane>
-          {gallery.scenes.length > 0 && (
+          {regularSceneCount > 0 && (
             <Tab.Pane eventKey="gallery-scenes-panel">
               <GalleryScenesPanel scenes={gallery.scenes} />
+            </Tab.Pane>
+          )}
+          {movieCount > 0 && (
+            <Tab.Pane eventKey="gallery-movies-panel">
+              <GalleryScenesPanel scenes={gallery.scenes} movies />
             </Tab.Pane>
           )}
         </Tab.Content>

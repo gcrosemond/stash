@@ -34,8 +34,13 @@ import {
 } from "src/components/Shared/CustomFields";
 import cloneDeep from "lodash-es/cloneDeep";
 
+export interface GroupEditDraft extends Partial<GQL.GroupDataFragment> {
+  front_image?: string | null;
+  back_image?: string | null;
+}
+
 interface IGroupEditPanel {
-  group: Partial<GQL.GroupDataFragment>;
+  group: GroupEditDraft;
   onSubmit: (group: GQL.GroupCreateInput, andNew?: boolean) => Promise<void>;
   onCancel: () => void;
   onDelete: () => void;
@@ -105,6 +110,8 @@ export const GroupEditPanel: React.FC<IGroupEditPanel> = ({
     director: group?.director ?? "",
     urls: group?.urls ?? [],
     synopsis: group?.synopsis ?? "",
+    front_image: group?.front_image ?? undefined,
+    back_image: group?.back_image ?? undefined,
     custom_fields: cloneDeep(group?.custom_fields ?? {}),
   };
 

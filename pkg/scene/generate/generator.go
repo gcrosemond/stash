@@ -43,6 +43,7 @@ type ScenePaths interface {
 	GetSpriteVttFilePath(checksum string) string
 
 	GetTranscodePath(checksum string) string
+	GetAudioWaveformPath(checksum string) string
 }
 
 type FFMpegConfig interface {

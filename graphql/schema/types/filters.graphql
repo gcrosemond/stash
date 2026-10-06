@@ -262,6 +262,7 @@ input SceneFilterType {
   OR: SceneFilterType
   NOT: SceneFilterType
 
+  type: SceneType
   id: IntCriterionInput
   title: StringCriterionInput
   code: StringCriterionInput
@@ -280,6 +281,8 @@ input SceneFilterType {
   path: StringCriterionInput
   "Filter by file count"
   file_count: IntCriterionInput
+  "Filter by number of virtual scenes sourced from this movie"
+  virtual_scene_count: IntCriterionInput
   # rating expressed as 1-100
   rating100: IntCriterionInput
   "Filter by organized"
@@ -310,6 +313,8 @@ input SceneFilterType {
   studios: HierarchicalMultiCriterionInput
   "Filter to only include scenes with this movie"
   movies: MultiCriterionInput @deprecated(reason: "use groups instead")
+  "Filter virtual scenes by their source movies"
+  source_movies: MultiCriterionInput
   "Filter to only include scenes with this group"
   groups: HierarchicalMultiCriterionInput
   "Filter to only include scenes with this gallery"

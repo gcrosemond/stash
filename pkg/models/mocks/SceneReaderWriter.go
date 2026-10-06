@@ -549,6 +549,27 @@ func (_m *SceneReaderWriter) FindByGroupID(ctx context.Context, groupID int) ([]
 	return r0, r1
 }
 
+// FindBySourceSceneID provides a mock function with given fields: ctx, sourceSceneID
+func (_m *SceneReaderWriter) FindBySourceSceneID(ctx context.Context, sourceSceneID int) ([]*models.Scene, error) {
+	ret := _m.Called(ctx, sourceSceneID)
+
+	var r0 []*models.Scene
+	if rf, ok := ret.Get(0).(func(context.Context, int) []*models.Scene); ok {
+		r0 = rf(ctx, sourceSceneID)
+	} else if ret.Get(0) != nil {
+		r0 = ret.Get(0).([]*models.Scene)
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, int) error); ok {
+		r1 = rf(ctx, sourceSceneID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // FindByIDs provides a mock function with given fields: ctx, ids
 func (_m *SceneReaderWriter) FindByIDs(ctx context.Context, ids []int) ([]*models.Scene, error) {
 	ret := _m.Called(ctx, ids)
@@ -570,6 +591,16 @@ func (_m *SceneReaderWriter) FindByIDs(ctx context.Context, ids []int) ([]*model
 	}
 
 	return r0, r1
+}
+
+// GetFingerprint provides a mock function with given fields: ctx, sceneID, fingerprintType
+func (_m *SceneReaderWriter) GetFingerprint(ctx context.Context, sceneID int, fingerprintType string) (*models.Fingerprint, error) {
+	ret := _m.Called(ctx, sceneID, fingerprintType)
+	var r0 *models.Fingerprint
+	if rf, ok := ret.Get(0).(*models.Fingerprint); ok {
+		r0 = rf
+	}
+	return r0, ret.Error(1)
 }
 
 // FindByOSHash provides a mock function with given fields: ctx, oshash
@@ -1462,6 +1493,12 @@ func (_m *SceneReaderWriter) UpdateCover(ctx context.Context, sceneID int, cover
 	}
 
 	return r0
+}
+
+// UpdateFingerprint provides a mock function with given fields: ctx, sceneID, fingerprint
+func (_m *SceneReaderWriter) UpdateFingerprint(ctx context.Context, sceneID int, fingerprint models.Fingerprint) error {
+	ret := _m.Called(ctx, sceneID, fingerprint)
+	return ret.Error(0)
 }
 
 // UpdatePartial provides a mock function with given fields: ctx, id, updatedScene

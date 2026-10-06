@@ -31,6 +31,7 @@ type GenerateMetadataInput struct {
 	Phashes                   bool `json:"phashes"`
 	ImagePhashes              bool `json:"imagePhashes"`
 	InteractiveHeatmapsSpeeds bool `json:"interactiveHeatmapsSpeeds"`
+	AudioWaveforms            bool `json:"audioWaveforms"`
 	ClipPreviews              bool `json:"clipPreviews"`
 	ImageThumbnails           bool `json:"imageThumbnails"`
 	// scene ids to generate for
@@ -82,6 +83,7 @@ type totalsGenerate struct {
 	phashes                  int64
 	imagePhashes             int64
 	interactiveHeatmapSpeeds int64
+	audioWaveforms           int64
 	clipPreviews             int64
 	imageThumbnails          int64
 
@@ -231,6 +233,9 @@ func (j *GenerateJob) Execute(ctx context.Context, progress *job.Progress) error
 		}
 		if j.input.InteractiveHeatmapsSpeeds {
 			logMsg += fmt.Sprintf(" %d heatmaps & speeds", totals.interactiveHeatmapSpeeds)
+		}
+		if j.input.AudioWaveforms {
+			logMsg += fmt.Sprintf(" %d audio waveforms", totals.audioWaveforms)
 		}
 		if j.input.ClipPreviews {
 			logMsg += fmt.Sprintf(" %d image clip previews", totals.clipPreviews)
@@ -511,19 +516,32 @@ func (j *GenerateJob) queueSceneJobs(ctx context.Context, g *generate.Generator,
 	}
 
 	if j.input.Phashes {
-		// generate for all files in scene
-		for _, f := range scene.Files.List() {
-			task := &GeneratePhashTask{
-				repository:          r,
-				File:                f,
-				fileNamingAlgorithm: j.fileNamingAlgo,
-				Overwrite:           j.overwrite,
+		if scene.Type == models.SceneTypeVirtual {
+			// Virtual scenes must hash their selected range rather than the
+			// shared source movie file.
+			task := &GenerateVirtualPhashTask{
+				repository: r,
+				SceneID:    scene.ID,
+				Overwrite:  j.overwrite,
 			}
+			j.totals.phashes++
+			j.totals.tasks++
+			queue <- task
+		} else {
+			// Generate a shared-file pHash for regular scenes only.
+			for _, f := range scene.Files.List() {
+				task := &GeneratePhashTask{
+					repository:          r,
+					File:                f,
+					fileNamingAlgorithm: j.fileNamingAlgo,
+					Overwrite:           j.overwrite,
+				}
 
-			if task.required() {
-				j.totals.phashes++
-				j.totals.tasks++
-				queue <- task
+				if task.required() {
+					j.totals.phashes++
+					j.totals.tasks++
+					queue <- task
+				}
 			}
 		}
 	}
@@ -538,6 +556,19 @@ func (j *GenerateJob) queueSceneJobs(ctx context.Context, g *generate.Generator,
 
 		if task.required() {
 			j.totals.interactiveHeatmapSpeeds++
+			j.totals.tasks++
+			queue <- task
+		}
+	}
+
+	if j.input.AudioWaveforms {
+		task := &GenerateAudioWaveformTask{
+			Scene:               *scene,
+			Overwrite:           j.overwrite,
+			fileNamingAlgorithm: j.fileNamingAlgo,
+		}
+		if task.required() {
+			j.totals.audioWaveforms++
 			j.totals.tasks++
 			queue <- task
 		}

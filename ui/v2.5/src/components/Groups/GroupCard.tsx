@@ -12,6 +12,7 @@ import { RatingBanner } from "../Shared/RatingBanner";
 import { faPlayCircle, faTag } from "@fortawesome/free-solid-svg-icons";
 import { RelatedGroupPopoverButton } from "./RelatedGroupPopover";
 import { OCounterButton } from "../Shared/CountButton";
+import { PopoverCountButton } from "../Shared/PopoverCountButton";
 
 const Description: React.FC<{
   sceneNumber?: number;
@@ -61,6 +62,7 @@ export const GroupCard: React.FC<IProps> = PatchComponent(
     fromGroupId,
     onMove,
   }) => {
+    const sceneCount = group.scene_count - group.movie_scene_count;
     const groupDescription = useMemo(() => {
       if (!fromGroupId) {
         return undefined;
@@ -74,11 +76,13 @@ export const GroupCard: React.FC<IProps> = PatchComponent(
     }, [fromGroupId, group.containing_groups]);
 
     function maybeRenderScenesPopoverButton() {
-      if (group.scenes.length === 0) return;
+      if (sceneCount === 0) return;
 
-      const popoverContent = group.scenes.map((scene) => (
+      const popoverContent = group.scenes
+        .filter((scene) => scene.type !== GQL.SceneType.Movie)
+        .map((scene) => (
         <SceneLink key={scene.id} scene={scene} />
-      ));
+        ));
 
       return (
         <HoverPopover
@@ -88,9 +92,22 @@ export const GroupCard: React.FC<IProps> = PatchComponent(
         >
           <Button className="minimal">
             <Icon icon={faPlayCircle} />
-            <span>{group.scenes.length}</span>
+            <span>{sceneCount}</span>
           </Button>
         </HoverPopover>
+      );
+    }
+
+    function maybeRenderMoviesPopoverButton() {
+      if (group.movie_scene_count === 0) return;
+
+      return (
+        <PopoverCountButton
+          className="movie-count"
+          type="movie"
+          count={group.movie_scene_count}
+          url={`/groups/${group.id}/movies`}
+        />
       );
     }
 
@@ -121,7 +138,8 @@ export const GroupCard: React.FC<IProps> = PatchComponent(
       if (
         sceneNumber ||
         groupDescription ||
-        group.scenes.length > 0 ||
+        sceneCount > 0 ||
+        group.movie_scene_count > 0 ||
         group.tags.length > 0 ||
         group.containing_groups.length > 0 ||
         group.sub_group_count > 0
@@ -135,6 +153,7 @@ export const GroupCard: React.FC<IProps> = PatchComponent(
             <hr />
             <ButtonGroup className="card-popovers">
               {maybeRenderScenesPopoverButton()}
+              {maybeRenderMoviesPopoverButton()}
               {maybeRenderTagPopoverButton()}
               {(group.sub_group_count > 0 ||
                 group.containing_groups.length > 0) && (

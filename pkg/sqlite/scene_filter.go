@@ -54,9 +54,15 @@ func (qb *sceneFilterHandler) handle(ctx context.Context, f *filterBuilder) {
 func (qb *sceneFilterHandler) criterionHandler() criterionHandler {
 	sceneFilter := qb.sceneFilter
 	return compoundHandler{
+		criterionHandlerFunc(func(ctx context.Context, f *filterBuilder) {
+			if sceneFilter.Type != nil {
+				f.addWhere("scenes.type = ?", string(*sceneFilter.Type))
+			}
+		}),
 		intCriterionHandler(sceneFilter.ID, "scenes.id", nil),
 		pathCriterionHandler(sceneFilter.Path, "folders.path", "files.basename", qb.addFoldersTable),
 		qb.fileCountCriterionHandler(sceneFilter.FileCount),
+		qb.virtualSceneCountCriterionHandler(sceneFilter.VirtualSceneCount),
 		stringCriterionHandler(sceneFilter.Title, "scenes.title"),
 		stringCriterionHandler(sceneFilter.Code, "scenes.code"),
 		stringCriterionHandler(sceneFilter.Details, "scenes.details"),
@@ -185,6 +191,7 @@ func (qb *sceneFilterHandler) criterionHandler() criterionHandler {
 
 		qb.groupsCriterionHandler(sceneFilter.Groups),
 		qb.moviesCriterionHandler(sceneFilter.Movies),
+		qb.sourceMoviesCriterionHandler(sceneFilter.SourceMovies),
 
 		qb.galleriesCriterionHandler(sceneFilter.Galleries),
 		qb.performerTagsCriterionHandler(sceneFilter.PerformerTags),
@@ -253,8 +260,8 @@ func (qb *sceneFilterHandler) criterionHandler() criterionHandler {
 				isRelated:  true,
 			},
 			joinFn: func(f *filterBuilder) {
-				qb.addFilesTable(f, joinTypeInner)
-				qb.addFoldersTable(f, joinTypeInner)
+				qb.addSourceFilesTable(f, joinTypeInner)
+				qb.addSourceFoldersTable(f, joinTypeInner)
 			},
 			// don't use a subquery; join directly
 			directJoin: true,
@@ -282,6 +289,22 @@ func (qb *sceneFilterHandler) addFilesTable(f *filterBuilder, joinType joinType)
 
 func (qb *sceneFilterHandler) addFoldersTable(f *filterBuilder, joinType joinType) {
 	qb.addFilesTable(f, joinType)
+	f.addJoin(joinType, folderTable, "", "files.parent_folder_id = folders.id")
+}
+
+func (qb *sceneFilterHandler) addSourceSceneFilesTable(f *filterBuilder, joinType joinType) {
+	// Virtual scenes represent a range of their source movie and inherit its
+	// physical file for file-backed filters such as the folder selector.
+	f.addJoin(joinType, scenesFilesTable, "", "scenes_files.scene_id = COALESCE(scenes.source_scene_id, scenes.id)")
+}
+
+func (qb *sceneFilterHandler) addSourceFilesTable(f *filterBuilder, joinType joinType) {
+	qb.addSourceSceneFilesTable(f, joinType)
+	f.addJoin(joinType, fileTable, "", "scenes_files.file_id = files.id")
+}
+
+func (qb *sceneFilterHandler) addSourceFoldersTable(f *filterBuilder, joinType joinType) {
+	qb.addSourceFilesTable(f, joinType)
 	f.addJoin(joinType, folderTable, "", "files.parent_folder_id = folders.id")
 }
 
@@ -318,6 +341,18 @@ func (qb *sceneFilterHandler) fileCountCriterionHandler(fileCount *models.IntCri
 	}
 
 	return h.handler(fileCount)
+}
+
+func (qb *sceneFilterHandler) virtualSceneCountCriterionHandler(count *models.IntCriterionInput) criterionHandlerFunc {
+	return func(_ context.Context, f *filterBuilder) {
+		if count == nil {
+			return
+		}
+
+		lhs := "(SELECT COUNT(*) FROM scenes virtual_scenes WHERE virtual_scenes.source_scene_id = scenes.id)"
+		clause, args := getIntCriterionWhereClause(lhs, *count)
+		f.addWhere(clause, args...)
+	}
 }
 
 func (qb *sceneFilterHandler) duplicatedCriterionHandler(duplicatedFilter *models.DuplicationCriterionInput) criterionHandlerFunc {
@@ -616,6 +651,43 @@ func (qb *sceneFilterHandler) moviesCriterionHandler(movies *models.MultiCriteri
 	}
 	h := qb.getMultiCriterionHandlerBuilder(groupTable, groupsScenesTable, "group_id", addJoinsFunc)
 	return h.handler(movies)
+}
+
+func (qb *sceneFilterHandler) sourceMoviesCriterionHandler(movies *models.MultiCriterionInput) criterionHandlerFunc {
+	return func(_ context.Context, f *filterBuilder) {
+		if movies == nil {
+			return
+		}
+
+		switch movies.Modifier {
+		case models.CriterionModifierIsNull:
+			f.addWhere("scenes.source_scene_id IS NULL")
+			return
+		case models.CriterionModifierNotNull:
+			f.addWhere("scenes.source_scene_id IS NOT NULL")
+			return
+		}
+
+		toArgs := func(ids []string) []interface{} {
+			args := make([]interface{}, len(ids))
+			for i, id := range ids {
+				args[i] = id
+			}
+			return args
+		}
+
+		if len(movies.Value) > 0 {
+			if movies.Modifier != models.CriterionModifierIncludes {
+				f.setError(fmt.Errorf("unsupported source movie filter modifier: %s", movies.Modifier))
+				return
+			}
+			f.addWhere("scenes.source_scene_id IN "+getInBinding(len(movies.Value)), toArgs(movies.Value)...)
+		}
+
+		if len(movies.Excludes) > 0 {
+			f.addWhere("(scenes.source_scene_id IS NULL OR scenes.source_scene_id NOT IN "+getInBinding(len(movies.Excludes))+")", toArgs(movies.Excludes)...)
+		}
+	}
 }
 
 func (qb *sceneFilterHandler) groupsCriterionHandler(groups *models.HierarchicalMultiCriterionInput) criterionHandlerFunc {

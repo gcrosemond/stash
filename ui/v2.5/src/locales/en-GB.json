@@ -566,6 +566,7 @@
       "generate_image_phashes_during_scan_tooltip": "For deduplication and identification.",
       "generate_phashes_during_scan": "Generate video perceptual hashes",
       "generate_phashes_during_scan_tooltip": "For deduplication and scene identification.",
+      "generate_audio_waveforms_during_scan": "Generate audio waveforms",
       "generate_previews_during_scan": "Generate animated image previews",
       "generate_previews_during_scan_tooltip": "Also generate animated (webp) previews, only required when Scene/Marker Wall Preview type is set to Animated image. When browsing they use less CPU than the video previews, but are generated in addition to them and are larger files.",
       "generate_sprites_during_scan": "Generate scrubber sprites",
@@ -1292,6 +1293,7 @@
     "internal_error": "Unexpected internal error. See logs for more details"
   },
   "marker_count": "Marker Count",
+  "movies": "Movies",
   "markers": "Markers",
   "measurements": "Measurements",
   "media_info": {

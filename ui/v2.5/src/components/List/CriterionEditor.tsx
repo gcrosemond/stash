@@ -38,7 +38,9 @@ import { OptionFilter, OptionListFilter } from "./Filters/OptionFilter";
 import { PathFilter } from "./Filters/PathFilter";
 import { PerformersCriterion } from "src/models/list-filter/criteria/performers";
 import PerformersFilter from "./Filters/PerformersFilter";
+import MoviesFilter from "./Filters/MoviesFilter";
 import { StudiosCriterion } from "src/models/list-filter/criteria/studios";
+import { SourceMoviesCriterion } from "src/models/list-filter/criteria/source-movies";
 import StudiosFilter from "./Filters/StudiosFilter";
 import { TagsCriterion } from "src/models/list-filter/criteria/tags";
 import TagsFilter from "./Filters/TagsFilter";
@@ -73,6 +75,7 @@ const GenericCriterionEditor: React.FC<IGenericCriterionEditor> = ({
     if (
       criterion instanceof PerformersCriterion ||
       criterion instanceof StudiosCriterion ||
+      criterion instanceof SourceMoviesCriterion ||
       criterion instanceof TagsCriterion ||
       criterion instanceof FolderCriterion ||
       criterion instanceof ParentFolderCriterion
@@ -88,6 +91,7 @@ const GenericCriterionEditor: React.FC<IGenericCriterionEditor> = ({
       criterion instanceof StashIDCriterion ||
       criterion instanceof PerformersCriterion ||
       criterion instanceof StudiosCriterion ||
+      criterion instanceof SourceMoviesCriterion ||
       criterion instanceof TagsCriterion
     );
   }, [criterion]);
@@ -155,6 +159,15 @@ const GenericCriterionEditor: React.FC<IGenericCriterionEditor> = ({
     if (criterion instanceof StudiosCriterion) {
       return (
         <StudiosFilter
+          criterion={criterion}
+          setCriterion={(c) => setCriterion(c)}
+        />
+      );
+    }
+
+    if (criterion instanceof SourceMoviesCriterion) {
+      return (
+        <MoviesFilter
           criterion={criterion}
           setCriterion={(c) => setCriterion(c)}
         />

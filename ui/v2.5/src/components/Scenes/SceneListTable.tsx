@@ -75,6 +75,32 @@ export const SceneListTable: React.FC<ISceneListTableProps> = (
 
   const DateCell = (scene: GQL.SlimSceneDataFragment) => <>{scene.date}</>;
 
+  const SegmentCell = (scene: GQL.SlimSceneDataFragment) => {
+    if (
+      scene.type !== GQL.SceneType.Virtual ||
+      scene.start_seconds == null ||
+      scene.end_seconds == null
+    ) {
+      return null;
+    }
+
+    return (
+      <>
+        {scene.source_scene ? (
+          <Link to={`/scenes/${scene.source_scene.id}`}>
+            <span className="ellips-data">
+              {scene.source_scene.title ?? "Movie"}
+            </span>
+          </Link>
+        ) : (
+          "Virtual scene"
+        )}{" "}
+        ({TextUtils.secondsToTimestamp(scene.start_seconds)} -{" "}
+        {TextUtils.secondsToTimestamp(scene.end_seconds)})
+      </>
+    );
+  };
+
   const RatingCell = (scene: GQL.SlimSceneDataFragment) => (
     <RatingSystem
       value={scene.rating100}
@@ -274,6 +300,12 @@ export const SceneListTable: React.FC<ISceneListTableProps> = (
       label: intl.formatMessage({ id: "date" }),
       defaultShow: true,
       render: DateCell,
+    },
+    {
+      value: "segment",
+      label: "Segment",
+      defaultShow: true,
+      render: SegmentCell,
     },
     {
       value: "rating",

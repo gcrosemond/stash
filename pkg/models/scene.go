@@ -28,6 +28,7 @@ type FileDuplicationCriterionInput struct {
 
 type SceneFilterType struct {
 	OperatorFilter[SceneFilterType]
+	Type     *SceneType            `json:"type"`
 	ID       *IntCriterionInput    `json:"id"`
 	Title    *StringCriterionInput `json:"title"`
 	Code     *StringCriterionInput `json:"code"`
@@ -45,6 +46,8 @@ type SceneFilterType struct {
 	Path *StringCriterionInput `json:"path"`
 	// Filter by file count
 	FileCount *IntCriterionInput `json:"file_count"`
+	// Filter by number of virtual scenes sourced from this movie
+	VirtualSceneCount *IntCriterionInput `json:"virtual_scene_count"`
 	// Filter by rating expressed as 1-100
 	Rating100 *IntCriterionInput `json:"rating100"`
 	// Filter by organized
@@ -77,6 +80,8 @@ type SceneFilterType struct {
 	Groups *HierarchicalMultiCriterionInput `json:"groups"`
 	// Filter to only include scenes with this movie
 	Movies *MultiCriterionInput `json:"movies"`
+	// Filter virtual scenes by their source movies
+	SourceMovies *MultiCriterionInput `json:"source_movies"`
 	// Filter to only include scenes with this gallery
 	Galleries *MultiCriterionInput `json:"galleries"`
 	// Filter to only include scenes with these tags

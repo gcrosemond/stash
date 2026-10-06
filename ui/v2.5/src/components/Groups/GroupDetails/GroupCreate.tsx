@@ -5,18 +5,26 @@ import { useHistory, useLocation } from "react-router-dom";
 import { useIntl } from "react-intl";
 import { LoadingIndicator } from "src/components/Shared/LoadingIndicator";
 import { useToast } from "src/hooks/Toast";
-import { GroupEditPanel } from "./GroupEditPanel";
+import { GroupEditDraft, GroupEditPanel } from "./GroupEditPanel";
+
+interface GroupCreateLocationState {
+  group?: GroupEditDraft;
+}
 
 const GroupCreate: React.FC = () => {
   const history = useHistory();
   const intl = useIntl();
   const Toast = useToast();
 
-  const location = useLocation();
+  const location = useLocation<GroupCreateLocationState>();
   const query = useMemo(() => new URLSearchParams(location.search), [location]);
-  const group = {
-    name: query.get("q") ?? undefined,
-  };
+  const group = useMemo<GroupEditDraft>(
+    () => ({
+      ...location.state?.group,
+      name: location.state?.group?.name ?? query.get("q") ?? undefined,
+    }),
+    [location.state, query]
+  );
 
   // Editing group state
   const [frontImage, setFrontImage] = useState<string | null>();

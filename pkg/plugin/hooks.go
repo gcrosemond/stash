@@ -19,16 +19,18 @@ func addHookContext(argsMap common.ArgsMap, hookContext common.HookContext) {
 // types for destroy hooks, to provide a little more information
 type SceneDestroyInput struct {
 	models.SceneDestroyInput
-	Checksum string `json:"checksum"`
-	OSHash   string `json:"oshash"`
-	Path     string `json:"path"`
+	Checksum string           `json:"checksum"`
+	OSHash   string           `json:"oshash"`
+	Path     string           `json:"path"`
+	Type     models.SceneType `json:"type"`
 }
 
 type ScenesDestroyInput struct {
 	models.ScenesDestroyInput
-	Checksum string `json:"checksum"`
-	OSHash   string `json:"oshash"`
-	Path     string `json:"path"`
+	Checksum string           `json:"checksum"`
+	OSHash   string           `json:"oshash"`
+	Path     string           `json:"path"`
+	Type     models.SceneType `json:"type"`
 }
 
 type GalleryDestroyInput struct {

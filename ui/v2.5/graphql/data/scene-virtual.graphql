@@ -1,0 +1,11 @@
+fragment VirtualSceneData on Scene {
+  id
+  source_scene_id
+  start_seconds
+  end_seconds
+  cover_seconds
+  title
+  paths {
+    screenshot
+  }
+}

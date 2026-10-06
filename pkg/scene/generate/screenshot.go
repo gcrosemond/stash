@@ -2,6 +2,7 @@ package generate
 
 import (
 	"context"
+	"strings"
 
 	"github.com/stashapp/stash/pkg/ffmpeg/transcoder"
 	"github.com/stashapp/stash/pkg/fsutil"
@@ -18,7 +19,8 @@ const (
 )
 
 type ScreenshotOptions struct {
-	At *float64
+	At       *float64
+	SlowSeek bool
 }
 
 func (g Generator) Screenshot(ctx context.Context, input string, videoWidth int, videoDuration float64, options ScreenshotOptions) ([]byte, error) {
@@ -33,8 +35,9 @@ func (g Generator) Screenshot(ctx context.Context, input string, videoWidth int,
 	}
 
 	ret, err := g.generateBytes(lockCtx, g.ScenePaths, jpgPattern, g.screenshot(input, screenshotOptions{
-		Time:    at,
-		Quality: screenshotQuality,
+		Time:     at,
+		Quality:  screenshotQuality,
+		SlowSeek: options.SlowSeek,
 		// default Width is video width
 	}))
 	if err != nil {
@@ -45,9 +48,10 @@ func (g Generator) Screenshot(ctx context.Context, input string, videoWidth int,
 }
 
 type screenshotOptions struct {
-	Time    float64
-	Width   int
-	Quality int
+	Time     float64
+	Width    int
+	Quality  int
+	SlowSeek bool
 }
 
 func (g Generator) screenshot(input string, options screenshotOptions) generateFn {
@@ -57,9 +61,11 @@ func (g Generator) screenshot(input string, options screenshotOptions) generateF
 			OutputType: transcoder.ScreenshotOutputTypeImage2,
 			Quality:    options.Quality,
 			Width:      options.Width,
+			SlowSeek:   options.SlowSeek,
 		}
 
 		args := transcoder.ScreenshotTime(input, options.Time, ssOptions)
+		logger.Debugf("[generator] screenshot command: %s", strings.Join(args, " "))
 		if err := g.generate(lockCtx, args); err != nil {
 			logger.Warnf("[generator] fast screenshot seek failed for %s at %.3fs, retrying with accurate seek: %v", input, options.Time, err)
 

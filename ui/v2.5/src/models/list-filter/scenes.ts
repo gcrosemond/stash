@@ -37,6 +37,8 @@ import { PathCriterionOption } from "./criteria/path";
 import { OrientationCriterionOption } from "./criteria/orientation";
 import { CustomFieldsCriterionOption } from "./criteria/custom-fields";
 import { FolderCriterionOption } from "./criteria/folder";
+import { SceneTypeCriterionOption } from "./criteria/scene-type";
+import { SourceMoviesCriterionOption } from "./criteria/source-movies";
 
 const defaultSortBy = "date";
 const sortByOptions = [
@@ -94,7 +96,13 @@ export const PerformerAgeCriterionOption =
 export const DurationCriterionOption =
   createDurationCriterionOption("duration");
 
+export const VirtualSceneCountCriterionOption =
+  createMandatoryNumberCriterionOption("virtual_scene_count", "scene_count");
+
 const criterionOptions = [
+  SceneTypeCriterionOption,
+  VirtualSceneCountCriterionOption,
+  SourceMoviesCriterionOption,
   createStringCriterionOption("title"),
   createStringCriterionOption("code", "scene_code"),
   PathCriterionOption,

@@ -28,6 +28,7 @@ fragment GroupData on Group {
   front_image_path
   back_image_path
   scene_count
+  movie_scene_count
   scene_count_all: scene_count(depth: -1)
   performer_count
   performer_count_all: performer_count(depth: -1)
@@ -38,6 +39,7 @@ fragment GroupData on Group {
   scenes {
     id
     title
+    type
   }
 
   custom_fields
@@ -74,6 +76,7 @@ fragment ListGroupData on Group {
   front_image_path
   back_image_path
   scene_count
+  movie_scene_count
   performer_count
   sub_group_count
   o_counter
@@ -81,5 +84,6 @@ fragment ListGroupData on Group {
   scenes {
     id
     title
+    type
   }
 }

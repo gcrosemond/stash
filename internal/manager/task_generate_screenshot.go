@@ -16,6 +16,17 @@ type GenerateCoverTask struct {
 	Overwrite    bool
 }
 
+func virtualCoverTimestamp(start, end float64, cover *float64) float64 {
+	// A cover at the exact start is the legacy/new-draft placeholder, not a
+	// deliberate frame choice. Use the normal default position instead so a
+	// virtual scene does not inherit a black fade/keyframe at its boundary.
+	if cover != nil && *cover > start && *cover < end {
+		return *cover
+	}
+
+	return start + (end-start)*0.2
+}
+
 func (t *GenerateCoverTask) GetDescription() string {
 	return fmt.Sprintf("Generating cover for %s", t.Scene.GetTitle())
 }
@@ -50,11 +61,47 @@ func (t *GenerateCoverTask) Start(ctx context.Context) {
 	} else {
 		at = *t.ScreenshotAt
 	}
+	accurateSeek := false
+	if t.Scene.Type == models.SceneTypeVirtual {
+		if t.Scene.StartSeconds == nil || t.Scene.EndSeconds == nil {
+			return
+		}
+		// Virtual-scene boundaries can occur between keyframes. An input-side
+		// seek may decode a black frame while still reporting success.
+		accurateSeek = true
+		// A cover at the exact start is the legacy/new-draft placeholder, not a
+		// deliberate frame choice. Use the normal default position instead so a
+		// virtual scene does not inherit a black fade/keyframe at its boundary.
+		if t.ScreenshotAt == nil {
+			at = virtualCoverTimestamp(
+				*t.Scene.StartSeconds,
+				*t.Scene.EndSeconds,
+				t.Scene.CoverSeconds,
+			)
+		} else {
+			at += *t.Scene.StartSeconds
+		}
+		if at >= float64(videoFile.Duration) {
+			at = float64(videoFile.Duration) - 0.001
+		}
+	}
 
 	// we'll generate the screenshot, grab the generated data and set it
 	// in the database.
 
-	logger.Debugf("Creating screenshot for %s", scenePath)
+	if t.Scene.Type == models.SceneTypeVirtual {
+		logger.Debugf(
+			"Generating virtual scene cover: scene=%d source=%q range=%.3f-%.3f source_time=%.3f accurate_seek=%t",
+			t.Scene.ID,
+			videoFile.Path,
+			*t.Scene.StartSeconds,
+			*t.Scene.EndSeconds,
+			at,
+			accurateSeek,
+		)
+	} else {
+		logger.Debugf("Creating screenshot for %s", scenePath)
+	}
 
 	g := generate.Generator{
 		Encoder:      instance.FFMpeg,
@@ -65,7 +112,8 @@ func (t *GenerateCoverTask) Start(ctx context.Context) {
 	}
 
 	coverImageData, err := g.Screenshot(context.TODO(), videoFile.Path, videoFile.Width, videoFile.Duration, generate.ScreenshotOptions{
-		At: &at,
+		At:       &at,
+		SlowSeek: accurateSeek,
 	})
 	if err != nil {
 		logger.Errorf("Error generating screenshot: %v", err)

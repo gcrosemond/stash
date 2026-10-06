@@ -19,9 +19,10 @@ import (
 type CleanGeneratedOptions struct {
 	BlobFiles bool `json:"blobs"`
 
-	Sprites     bool `json:"sprites"`
-	Screenshots bool `json:"screenshots"`
-	Transcodes  bool `json:"transcodes"`
+	Sprites        bool `json:"sprites"`
+	Screenshots    bool `json:"screenshots"`
+	Transcodes     bool `json:"transcodes"`
+	AudioWaveforms bool `json:"audioWaveforms"`
 
 	Markers bool `json:"markers"`
 
@@ -84,6 +85,9 @@ func (j *CleanGeneratedJob) countTasks() int {
 		tasks++
 	}
 	if j.Options.Transcodes {
+		tasks++
+	}
+	if j.Options.AudioWaveforms {
 		tasks++
 	}
 	if j.Options.Markers {
@@ -156,6 +160,15 @@ func (j *CleanGeneratedJob) Execute(ctx context.Context, progress *job.Progress)
 		progress.ExecuteTask("Cleaning transcode files", func() {
 			if err := j.cleanTranscodeFiles(ctx, progress); err != nil {
 				j.logError(fmt.Errorf("error cleaning transcode files: %w", err))
+			}
+		})
+		j.taskComplete(progress)
+	}
+
+	if j.Options.AudioWaveforms {
+		progress.ExecuteTask("Cleaning audio waveform files", func() {
+			if err := j.cleanAudioWaveformFiles(ctx, progress); err != nil {
+				j.logError(fmt.Errorf("error cleaning audio waveform files: %w", err))
 			}
 		})
 		j.taskComplete(progress)
@@ -525,6 +538,10 @@ func (j *CleanGeneratedJob) getTranscodeFileHash(basename string) (string, error
 
 func (j *CleanGeneratedJob) cleanTranscodeFiles(ctx context.Context, progress *job.Progress) error {
 	return j.cleanSceneFiles(ctx, j.Paths.Generated.Transcodes, "transcode", j.getTranscodeFileHash, progress)
+}
+
+func (j *CleanGeneratedJob) cleanAudioWaveformFiles(ctx context.Context, progress *job.Progress) error {
+	return j.cleanSceneFiles(ctx, j.Paths.Generated.AudioWaveforms, "audio waveform", j.getScreenshotFileHash, progress)
 }
 
 func (j *CleanGeneratedJob) getMarkerSceneFileHash(basename string) (string, error) {

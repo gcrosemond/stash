@@ -628,6 +628,15 @@ export const useSceneUpdate = () =>
     },
   });
 
+export const useScenesConvertToMovie = () =>
+  GQL.useScenesConvertToMovieMutation({
+    update(cache, result) {
+      if (!result.data?.scenesConvertToMovie) return;
+      evictTypeFields(cache, sceneMutationImpactedTypeFields);
+      evictQueries(cache, sceneMutationImpactedQueries);
+    },
+  });
+
 export const useBulkSceneUpdate = () =>
   GQL.useBulkSceneUpdateMutation({
     update(cache, result) {

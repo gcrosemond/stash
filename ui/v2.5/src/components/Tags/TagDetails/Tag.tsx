@@ -46,6 +46,8 @@ import { AliasList } from "src/components/Shared/DetailsPage/AliasList";
 import { HeaderImage } from "src/components/Shared/DetailsPage/HeaderImage";
 import { goBackOrReplace } from "src/utils/history";
 import { PatchComponent } from "src/patch";
+import { RelatedSceneTabTitle } from "src/components/Scenes/RelatedSceneTabTitle";
+import { useTagFilterHook } from "src/core/tags";
 
 interface IProps {
   tag: GQL.TagDataFragment;
@@ -60,6 +62,7 @@ interface ITagParams {
 const validTabs = [
   "default",
   "scenes",
+  "movies",
   "images",
   "galleries",
   "groups",
@@ -85,6 +88,7 @@ const TagTabs: React.FC<{
 
   const sceneCount =
     (showAllDetails ? tag.scene_count_all : tag.scene_count) ?? 0;
+  const tagFilterHook = useTagFilterHook(tag, showAllDetails);
   const imageCount =
     (showAllDetails ? tag.image_count_all : tag.image_count) ?? 0;
   const galleryCount =
@@ -163,9 +167,8 @@ const TagTabs: React.FC<{
       <Tab
         eventKey="scenes"
         title={
-          <TabTitleCounter
-            messageID="scenes"
-            count={sceneCount}
+          <RelatedSceneTabTitle
+            filterHook={tagFilterHook}
             abbreviateCounter={abbreviateCounter}
           />
         }
@@ -175,6 +178,24 @@ const TagTabs: React.FC<{
           active={activeTabKey === "scenes"}
           tag={tag}
           showSubTagContent={showAllDetails}
+        />
+      </Tab>
+      <Tab
+        eventKey="movies"
+        title={
+          <RelatedSceneTabTitle
+            filterHook={tagFilterHook}
+            movies
+            abbreviateCounter={abbreviateCounter}
+          />
+        }
+      >
+        {contentSwitch}
+        <TagScenesPanel
+          active={activeTabKey === "movies"}
+          tag={tag}
+          showSubTagContent={showAllDetails}
+          movies
         />
       </Tab>
       <Tab

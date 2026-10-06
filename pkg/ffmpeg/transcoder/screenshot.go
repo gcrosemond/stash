@@ -2,6 +2,8 @@ package transcoder
 
 import "github.com/stashapp/stash/pkg/ffmpeg"
 
+const accurateSeekWindow = 20.0
+
 type ScreenshotOptions struct {
 	OutputPath string
 	OutputType ScreenshotOutputType
@@ -64,12 +66,26 @@ func ScreenshotTime(input string, t float64, options ScreenshotOptions) ffmpeg.A
 	args = args.LogLevel(options.Verbosity)
 	args = args.Overwrite()
 
-	if !options.SlowSeek {
-		args = args.Seek(t)
+	fastSeek := t
+	slowSeek := 0.0
+	if options.SlowSeek {
+		// Decode a bounded window after a fast seek. This retains frame-accurate
+		// output without decoding an entire long source movie from timestamp zero.
+		if t > accurateSeekWindow {
+			fastSeek = t - accurateSeekWindow
+			slowSeek = accurateSeekWindow
+		} else {
+			fastSeek = 0
+			slowSeek = t
+		}
+	}
+
+	if fastSeek > 0 {
+		args = args.Seek(fastSeek)
 	}
 	args = args.Input(input)
-	if options.SlowSeek {
-		args = args.Seek(t)
+	if slowSeek > 0 {
+		args = args.Seek(slowSeek)
 	}
 	args = args.VideoFrames(1)
 

@@ -169,6 +169,10 @@ var (
 		table:    goqu.T(sceneMarkerTable),
 		idColumn: goqu.T(sceneMarkerTable).Col(idColumn),
 	}
+	sceneIgnoredRangesTableMgr = &table{
+		table:    goqu.T("scene_ignored_ranges"),
+		idColumn: goqu.C("id"),
+	}
 
 	sceneMarkersTagsTableMgr = &joinTable{
 		table: table{

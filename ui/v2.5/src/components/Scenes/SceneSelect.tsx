@@ -49,6 +49,7 @@ type ExtraSceneProps = {
   hoverPlacement?: Placement;
   excludeIds?: string[];
   extraCriteria?: Array<ModifierCriterion<CriterionValue>>;
+  sceneType?: GQL.SceneType;
 };
 
 type FindScenesResult = Awaited<
@@ -90,6 +91,10 @@ const _SceneSelect: React.FC<
     filter.sortDirection = GQL.SortDirectionEnum.Asc;
 
     filter.criteria = [...(props.extraCriteria ?? [])];
+    if (props.sceneType) {
+      const makeFilter = filter.makeFilter.bind(filter);
+      filter.makeFilter = () => ({ ...makeFilter(), type: props.sceneType });
+    }
 
     if (isUUID(input)) {
       const oldCriteria = filter.criteria;
@@ -291,3 +296,7 @@ const _SceneIDSelect: React.FC<
 };
 
 export const SceneIDSelect = PatchComponent("SceneIDSelect", _SceneIDSelect);
+
+export const MovieIDSelect: React.FC<IFilterProps & IFilterIDProps<Scene>> = (
+  props
+) => <SceneIDSelect {...props} sceneType={GQL.SceneType.Movie} />;

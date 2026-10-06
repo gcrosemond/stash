@@ -12,6 +12,7 @@ import { IPlaySceneOptions, SceneQueue } from "src/models/sceneQueue";
 import { SceneWallPanel } from "./SceneWallPanel";
 import { SceneListTable } from "./SceneListTable";
 import { EditScenesDialog } from "./EditScenesDialog";
+import { ConvertScenesToMovieDialog } from "./ConvertScenesToMovieDialog";
 import { DeleteScenesDialog } from "./DeleteScenesDialog";
 import { GenerateDialog } from "../Dialogs/GenerateDialog";
 import { ExportDialog } from "../Shared/ExportDialog";
@@ -43,7 +44,10 @@ import { SidebarRatingFilter } from "../List/Filters/RatingFilter";
 import { OrganizedCriterionOption } from "src/models/list-filter/criteria/organized";
 import { HasMarkersCriterionOption } from "src/models/list-filter/criteria/has-markers";
 import { SidebarBooleanFilter } from "../List/Filters/BooleanFilter";
-import { PerformerAgeCriterionOption } from "src/models/list-filter/scenes";
+import {
+  PerformerAgeCriterionOption,
+  VirtualSceneCountCriterionOption,
+} from "src/models/list-filter/scenes";
 import { SidebarDuplicateFilter } from "../List/Filters/DuplicateFilter";
 import { SidebarAgeFilter } from "../List/Filters/SidebarAgeFilter";
 import { SidebarDurationFilter } from "../List/Filters/SidebarDurationFilter";
@@ -59,6 +63,11 @@ import { useZoomKeybinds } from "../List/ZoomSlider";
 import { FilteredListToolbar } from "../List/FilteredListToolbar";
 import { FilterTags } from "../List/FilterTags";
 import { SidebarFolderFilter } from "../List/Filters/FolderFilter";
+import { SidebarOptionFilter } from "../List/Filters/OptionFilter";
+import { SidebarNumberFilter } from "../List/Filters/SidebarNumberFilter";
+import { SidebarMoviesFilter } from "../List/Filters/MoviesFilter";
+import { SceneTypeCriterionOption } from "src/models/list-filter/criteria/scene-type";
+import { isMovieSceneView } from "./sceneTypeFilters";
 
 function renderMetadataByline(result: GQL.FindScenesQueryResult) {
   const duration = result?.data?.findScenes?.duration;
@@ -185,9 +194,17 @@ const SceneList: React.FC<{
   selectedIds: Set<string>;
   onSelectChange: (id: string, selected: boolean, shiftKey: boolean) => void;
   fromGroupId?: string;
+  virtualScenesByMovie?: ReadonlyMap<string, GQL.VirtualSceneDataFragment[]>;
 }> = PatchComponent(
   "SceneList",
-  ({ scenes, filter, selectedIds, onSelectChange, fromGroupId }) => {
+  ({
+    scenes,
+    filter,
+    selectedIds,
+    onSelectChange,
+    fromGroupId,
+    virtualScenesByMovie,
+  }) => {
     const queue = useMemo(
       () => SceneQueue.fromListFilterModel(filter),
       [filter]
@@ -206,6 +223,7 @@ const SceneList: React.FC<{
           selectedIds={selectedIds}
           onSelectChange={onSelectChange}
           fromGroupId={fromGroupId}
+          virtualScenesByMovie={virtualScenesByMovie}
         />
       );
     }
@@ -273,7 +291,8 @@ const SidebarContent: React.FC<{
   const showResultsId =
     count !== undefined ? "actions.show_count_results" : "actions.show_results";
 
-  const hideStudios = view === View.StudioScenes;
+  const hideStudios = view === View.StudioScenes || view === View.StudioMovies;
+  const movieView = isMovieSceneView(view);
 
   return (
     <>
@@ -287,6 +306,27 @@ const SidebarContent: React.FC<{
       />
 
       <ScenesFilterSidebarSections>
+        {view === View.Scenes && (
+          <SidebarOptionFilter
+            title={<FormattedMessage id="type" />}
+            option={SceneTypeCriterionOption}
+            filter={filter}
+            setFilter={setFilter}
+            sectionID="scene_type"
+          />
+        )}
+        {!movieView && (
+          <SidebarMoviesFilter filter={filter} setFilter={setFilter} />
+        )}
+        {movieView && (
+          <SidebarNumberFilter
+            title={<FormattedMessage id="scene_count" />}
+            option={VirtualSceneCountCriterionOption}
+            filter={filter}
+            setFilter={setFilter}
+            sectionID="virtual_scene_count"
+          />
+        )}
         {!hideStudios && (
           <SidebarStudiosFilter
             filter={filter}
@@ -382,6 +422,8 @@ export const FilteredSceneList = PatchComponent(
 
     const { filterState, queryResult, modalState, listSelect, showEditFilter } =
       useFilteredItemList({
+        hiddenCriterionTypes:
+          isMovieSceneView(view) ? ["scene_type"] : ["virtual_scene_count"],
         filterStateProps: {
           filterMode: GQL.FilterMode.Scenes,
           defaultSort,
@@ -400,6 +442,26 @@ export const FilteredSceneList = PatchComponent(
 
     const { effectiveFilter, result, cachedResult, items, totalCount } =
       queryResult;
+
+    const movieIDs = useMemo(
+      () => (isMovieSceneView(view) ? items.map((item) => item.id) : []),
+      [items, view]
+    );
+    const virtualScenesQuery = GQL.useFindVirtualScenesQuery({
+      skip: movieIDs.length === 0,
+      variables: { source_movie_ids: movieIDs },
+      fetchPolicy: "cache-and-network",
+    });
+    const virtualScenesByMovie = useMemo(() => {
+      const scenesByMovie = new Map<string, GQL.VirtualSceneDataFragment[]>();
+      for (const scene of virtualScenesQuery.data?.findScenes.scenes ?? []) {
+        if (!scene.source_scene_id) continue;
+        const scenes = scenesByMovie.get(scene.source_scene_id) ?? [];
+        scenes.push(scene);
+        scenesByMovie.set(scene.source_scene_id, scenes);
+      }
+      return scenesByMovie;
+    }, [virtualScenesQuery.data]);
 
     const {
       selectedIds,
@@ -448,6 +510,21 @@ export const FilteredSceneList = PatchComponent(
         />
       );
     }, [showModal, selectedItems, onCloseEditDelete]);
+
+    const movieCandidates = useMemo(
+      () =>
+        selectedItems.filter((scene) => scene.type === GQL.SceneType.Normal),
+      [selectedItems]
+    );
+
+    const onConvertToMovie = useCallback(() => {
+      showModal(
+        <ConvertScenesToMovieDialog
+          selected={movieCandidates}
+          onClose={onCloseEditDelete}
+        />
+      );
+    }, [showModal, movieCandidates, onCloseEditDelete]);
 
     useEffect(() => {
       Mousetrap.bind("e", () => {
@@ -614,6 +691,11 @@ export const FilteredSceneList = PatchComponent(
         isDisplayed: () => hasSelection,
       },
       {
+        text: "Convert to Movies…",
+        onClick: onConvertToMovie,
+        isDisplayed: () => movieCandidates.length > 0,
+      },
+      {
         text: intl.formatMessage({ id: "actions.export" }),
         onClick: () => onExport(false),
         isDisplayed: () => hasSelection,
@@ -711,6 +793,11 @@ export const FilteredSceneList = PatchComponent(
                     selectedIds={selectedIds}
                     onSelectChange={onSelectChange}
                     fromGroupId={fromGroupId}
+                    virtualScenesByMovie={
+                      isMovieSceneView(view)
+                        ? virtualScenesByMovie
+                        : undefined
+                    }
                   />
                 </LoadedContent>
 

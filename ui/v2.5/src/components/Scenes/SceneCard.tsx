@@ -1,10 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { Button, ButtonGroup, OverlayTrigger, Tooltip } from "react-bootstrap";
-import { useHistory } from "react-router-dom";
+import { Link, useHistory } from "react-router-dom";
 import cx from "classnames";
 import * as GQL from "src/core/generated-graphql";
 import { Icon } from "../Shared/Icon";
-import { GalleryLink, TagLink, SceneMarkerLink } from "../Shared/TagLink";
+import {
+  GalleryLink,
+  TagLink,
+  SceneLink,
+  SceneMarkerLink,
+} from "../Shared/TagLink";
 import { HoverPopover } from "../Shared/HoverPopover";
 import { TruncatedText } from "../Shared/TruncatedText";
 import NavUtils from "src/utils/navigation";
@@ -21,6 +26,7 @@ import {
   faFilm,
   faImages,
   faMapMarkerAlt,
+  faPlayCircle,
   faTag,
 } from "@fortawesome/free-solid-svg-icons";
 import { objectPath, objectTitle } from "src/core/files";
@@ -116,6 +122,7 @@ interface ISceneCardProps {
   zoomIndex?: number;
   onSelectedChanged?: (selected: boolean, shiftKey: boolean) => void;
   fromGroupId?: string;
+  virtualScenes?: GQL.VirtualSceneDataFragment[];
 }
 
 const Description: React.FC<{
@@ -201,6 +208,46 @@ const SceneCardPopovers = React.memo(
           <Button className="minimal">
             <Icon icon={faFilm} />
             <span>{props.scene.groups.length}</span>
+          </Button>
+        </HoverPopover>
+      );
+    }
+
+    function maybeRenderVirtualSceneCount() {
+      if (
+        props.scene.type !== GQL.SceneType.Movie ||
+        !props.virtualScenes?.length
+      )
+        return;
+
+      const popoverContent = props.virtualScenes.map((scene) => (
+        <div className="scene-tag-container row" key={scene.id}>
+          {scene.paths.screenshot && (
+            <Link
+              to={`/scenes/${scene.id}`}
+              className="scene-tag col m-auto zoom-2"
+            >
+              <img
+                className="image-thumbnail"
+                loading="lazy"
+                alt={scene.title ?? ""}
+                src={scene.paths.screenshot}
+              />
+            </Link>
+          )}
+          <SceneLink scene={scene} className="d-block" />
+        </div>
+      ));
+
+      return (
+        <HoverPopover
+          placement="bottom"
+          content={popoverContent}
+          className="virtual-scene-count tag-tooltip"
+        >
+          <Button className="minimal">
+            <Icon icon={faPlayCircle} />
+            <span>{props.virtualScenes.length}</span>
           </Button>
         </HoverPopover>
       );
@@ -297,6 +344,7 @@ const SceneCardPopovers = React.memo(
         (props.scene.tags.length > 0 ||
           props.scene.performers.length > 0 ||
           props.scene.groups.length > 0 ||
+          props.virtualScenes?.length ||
           props.scene.scene_markers.length > 0 ||
           props.scene?.o_counter ||
           props.scene.galleries.length > 0 ||
@@ -311,6 +359,7 @@ const SceneCardPopovers = React.memo(
               {maybeRenderTagPopoverButton()}
               {maybeRenderPerformerPopoverButton()}
               {maybeRenderGroupPopoverButton()}
+              {maybeRenderVirtualSceneCount()}
               {maybeRenderSceneMarkerPopoverButton()}
               {maybeRenderOCounter()}
               {maybeRenderGallery()}
@@ -328,9 +377,28 @@ const SceneCardPopovers = React.memo(
 
 const SceneCardDetails = React.memo(
   PatchComponent("SceneCard.Details", (props: ISceneCardProps) => {
+    const virtualRange =
+      props.scene.type === GQL.SceneType.Virtual &&
+      props.scene.start_seconds != null &&
+      props.scene.end_seconds != null
+        ? `${TextUtils.secondsToTimestamp(props.scene.start_seconds)} - ${TextUtils.secondsToTimestamp(props.scene.end_seconds)}`
+        : undefined;
+
     return (
       <div className="scene-card__details">
         <span className="scene-card__date">{props.scene.date}</span>
+        {virtualRange && (
+          <span className="extra-scene-info">
+            {props.scene.source_scene ? (
+              <a href={`/scenes/${props.scene.source_scene.id}`}>
+                {props.scene.source_scene.title ?? "Movie"}
+              </a>
+            ) : (
+              "Virtual scene"
+            )}{" "}
+            ({virtualRange})
+          </span>
+        )}
         <span className="file-path extra-scene-info">
           {objectPath(props.scene)}
         </span>
@@ -388,6 +456,22 @@ export const SceneSpecsOverlay: React.FC<ISceneSpecsOverlay> = React.memo(
   })
 );
 
+const VirtualSceneOverlay: React.FC<{ scene: GQL.SlimSceneDataFragment }> = ({
+  scene,
+}) => {
+  if (scene.type !== GQL.SceneType.Virtual) return null;
+
+  return (
+    <span
+      className="virtual-scene-overlay"
+      title="Virtual scene"
+      aria-label="Virtual scene"
+    >
+      V
+    </span>
+  );
+};
+
 const SceneCardImage = React.memo(
   PatchComponent("SceneCard.Image", (props: ISceneCardProps) => {
     const history = useHistory();
@@ -443,6 +527,7 @@ const SceneCardImage = React.memo(
         />
         <RatingBanner rating={props.scene.rating100} />
         <SceneSpecsOverlay scene={props.scene} />
+        <VirtualSceneOverlay scene={props.scene} />
         {maybeRenderInteractiveSpeedOverlay()}
       </>
     );

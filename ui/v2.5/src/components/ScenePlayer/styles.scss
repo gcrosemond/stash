@@ -482,6 +482,246 @@ $sceneTabWidth: 450px;
   padding-right: 15px;
 }
 
+.movie-editor-container {
+  margin: 0;
+  padding: 0 15px;
+}
+
+.scene-player-container.movie-editor-active {
+  @media (min-width: 1200px) {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - #{$menuHeight});
+
+    .VideoPlayer {
+      flex: 1 1 auto;
+      height: auto;
+      max-height: none;
+      min-height: 0;
+    }
+
+    .movie-timeline {
+      flex: 0 0 auto;
+    }
+  }
+}
+
+.movie-timeline {
+  margin: 0.25rem 0 0.5rem;
+}
+
+.movie-timeline-controls {
+  align-items: center;
+  display: flex;
+  gap: 0.35rem;
+  justify-content: flex-end;
+  margin-bottom: 0.2rem;
+
+  label {
+    align-items: center;
+    display: flex;
+    font-size: 0.75rem;
+    gap: 0.3rem;
+    margin: 0;
+
+    input {
+      width: 6rem;
+    }
+
+    span {
+      min-width: 1.6rem;
+    }
+  }
+}
+
+.movie-timeline-actions {
+  display: flex;
+  gap: 0.15rem;
+  margin-right: auto;
+}
+
+.movie-timeline-control {
+  background: transparent;
+  border: 0;
+  color: $link-color;
+  font-size: 1.4rem;
+  line-height: 1;
+  padding: 0 0.2rem;
+
+  &:disabled {
+    color: #697582;
+    cursor: default;
+  }
+}
+
+.movie-timeline-waveform-status {
+  color: #aab4c0;
+  font-size: 0.75rem;
+  margin-left: 0.25rem;
+  white-space: nowrap;
+}
+
+.movie-timeline-ruler {
+  color: #adb5bd;
+  font-size: 0.7rem;
+  height: 1rem;
+  overflow: hidden;
+  position: relative;
+
+  span {
+    border-left: 1px solid #697582;
+    padding-left: 0.2rem;
+    position: absolute;
+    top: 0;
+    transform: translateX(-1px);
+    white-space: nowrap;
+  }
+}
+
+.movie-timeline-track {
+  background: #151b23;
+  border: 1px solid #4b5563;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  height: 3.25rem;
+  overflow: hidden;
+  position: relative;
+}
+
+.movie-timeline-waveform {
+  height: 100%;
+  left: 0;
+  object-fit: fill;
+  opacity: 0.18;
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+}
+
+.movie-timeline-scene,
+.movie-timeline-draft {
+  border: 0;
+  bottom: 0.25rem;
+  cursor: pointer;
+  padding: 0;
+  position: absolute;
+  top: 0.25rem;
+  z-index: 1;
+}
+
+.movie-timeline-scene {
+  // The inline opacity keeps waveform peaks visible through every range.
+  transition: opacity 100ms ease;
+
+  &.selected {
+    box-shadow: inset 0 0 0 1px #fff, 0 0 0 1px #facc15;
+    z-index: 2;
+  }
+}
+
+.movie-timeline-draft {
+  background: rgba(250, 204, 21, 0.7);
+  border: 2px dashed #fff;
+  pointer-events: none;
+}
+
+.movie-timeline-handle {
+  bottom: 0;
+  cursor: ew-resize;
+  position: absolute;
+  top: 0;
+  width: 6px;
+
+  // Keep a generous hit target centered on the boundary without making the
+  // visible trim grip look like a thick scene border.
+  &::after {
+    background: repeating-linear-gradient(
+      to bottom,
+      #fff 0,
+      #fff 4px,
+      #9ca3af 4px,
+      #9ca3af 5px
+    );
+    content: "";
+    inset: 0 auto 0 1.5px;
+    position: absolute;
+    width: 3px;
+  }
+
+  &.start { left: -3px; }
+  &.end { right: -3px; }
+}
+
+.movie-timeline-playhead {
+  background: #fff;
+  bottom: 0;
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  width: 2px;
+  z-index: 4;
+}
+
+.movie-scenes-panel {
+  .list-group-item {
+    background-color: #2a3540;
+    border-color: #43505c;
+    color: #f8f9fa;
+
+    &.list-group-item-action:hover,
+    &.list-group-item-action:focus {
+      background-color: #364553;
+      color: #fff;
+    }
+
+    &.active {
+      background-color: #126ca1;
+      border-color: #1a91d4;
+      color: #fff;
+    }
+  }
+
+  .movie-scene-list-item {
+    border-left-width: 4px;
+  }
+}
+
+.movie-scene-cover {
+  flex: 0 0 auto;
+  height: 2.5rem;
+  object-fit: cover;
+  width: 4rem;
+}
+
+.movie-scene-cover-placeholder {
+  align-items: center;
+  background: #343a40;
+  color: #adb5bd;
+  display: flex;
+  font-size: 0.75rem;
+  justify-content: center;
+  text-align: center;
+}
+
+.movie-scene-cover-preview {
+  align-items: center;
+  background: #212529;
+  display: flex;
+  justify-content: center;
+  min-height: 6rem;
+
+  img {
+    max-height: 10rem;
+    max-width: 100%;
+  }
+
+  .movie-scene-cover-placeholder {
+    min-height: 6rem;
+    padding: 0.5rem;
+    width: 100%;
+  }
+}
+
 .scrubber-wrapper {
   display: flex;
   flex-shrink: 0;
@@ -698,6 +938,15 @@ $sceneTabWidth: 450px;
     &.expanded {
       flex: 0 0 calc(100% - 15px);
       max-width: calc(100% - 15px);
+    }
+  }
+
+  .movie-editor-container {
+    margin-left: calc(#{$sceneTabWidth} + 15px);
+    padding-left: 0;
+
+    &.expanded {
+      margin-left: 15px;
     }
   }
 }

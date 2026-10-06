@@ -18,6 +18,7 @@ type ScenePathsType {
   sprite: String # Resolver
   funscript: String # Resolver
   interactive_heatmap: String # Resolver
+  audio_waveform: String # Resolver
   caption: String # Resolver
 }
 
@@ -31,13 +32,42 @@ type SceneGroup {
   scene_index: Int
 }
 
+type SceneIgnoredRange {
+  id: ID!
+  start_seconds: Float!
+  end_seconds: Float!
+}
+
 type VideoCaption {
   language_code: String!
   caption_type: String!
 }
 
+enum SceneType {
+  "A regular scene backed by its own media file."
+  NORMAL
+  "A scene whose media file is the source for one or more virtual scenes."
+  MOVIE
+  "A time range within a movie's media file; it has no independent physical file."
+  VIRTUAL
+}
+
 type Scene {
   id: ID!
+  "The scene kind. Plugins that do not need to distinguish scenes can ignore this field."
+  type: SceneType!
+  "The source movie ID for a virtual scene; null for normal scenes and movies."
+  source_scene_id: ID
+  "The source movie for a virtual scene; null for normal scenes and movies."
+  source_scene: Scene
+  "Ignored ranges defined on a movie; empty for normal and virtual scenes."
+  ignored_ranges: [SceneIgnoredRange!]!
+  "The virtual scene start offset, in seconds; null for normal scenes and movies."
+  start_seconds: Float
+  "The virtual scene end offset, in seconds; null for normal scenes and movies."
+  end_seconds: Float
+  "The preferred cover offset, in seconds; null when no explicit offset is set."
+  cover_seconds: Float
   title: String
   code: String
   details: String
@@ -167,6 +197,34 @@ input SceneUpdateInput {
   primary_file_id: ID
 
   custom_fields: CustomFieldsInput
+}
+
+input VirtualSceneCreateInput {
+  source_scene_id: ID!
+  title: String
+  start_seconds: Float!
+  end_seconds: Float!
+  cover_seconds: Float
+}
+
+input VirtualSceneUpdateInput {
+  id: ID!
+  title: String
+  start_seconds: Float
+  end_seconds: Float
+  cover_seconds: Float
+}
+
+input SceneIgnoredRangeCreateInput {
+  scene_id: ID!
+  start_seconds: Float!
+  end_seconds: Float!
+}
+
+input SceneIgnoredRangeUpdateInput {
+  id: ID!
+  start_seconds: Float!
+  end_seconds: Float!
 }
 
 enum BulkUpdateIdMode {

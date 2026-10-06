@@ -2,6 +2,8 @@ export enum View {
   Galleries = "galleries",
   Images = "images",
   Scenes = "scenes",
+  Movies = "movies",
+  VirtualScenes = "virtual_scenes",
   Groups = "groups",
   Performers = "performers",
   Tags = "tags",
@@ -16,6 +18,7 @@ export enum View {
   TagGroups = "tag_groups",
 
   PerformerScenes = "performer_scenes",
+  PerformerMovies = "performer_movies",
   PerformerGalleries = "performer_galleries",
   PerformerImages = "performer_images",
   PerformerGroups = "performer_groups",
@@ -27,11 +30,14 @@ export enum View {
   GalleryImages = "gallery_images",
 
   StudioScenes = "studio_scenes",
+  StudioMovies = "studio_movies",
   StudioGroups = "studio_groups",
   StudioPerformers = "studio_performers",
   StudioChildren = "studio_children",
 
   GroupScenes = "group_scenes",
+  GroupMovies = "group_movies",
   GroupSubGroups = "group_sub_groups",
   GroupPerformers = "group_performers",
+  TagMovies = "tag_movies",
 }

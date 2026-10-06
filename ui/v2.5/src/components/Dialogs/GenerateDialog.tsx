@@ -60,8 +60,16 @@ export const GenerateDialog: React.FC<IGenerateDialog> = ({
       return;
     }
 
-    // combine the defaults with the system preview generation settings
-    if (configuration?.defaults.generate) {
+    // Prefer the visible Library > Generated Content defaults. The legacy
+    // backend defaults remain as a fallback for configurations without UI
+    // task defaults yet.
+    const uiGenerateDefaults = configuration?.ui.taskDefaults?.generate as
+      | GQL.GenerateMetadataInput
+      | undefined;
+    if (uiGenerateDefaults) {
+      setOptions(uiGenerateDefaults);
+      setConfigRead(true);
+    } else if (configuration?.defaults.generate) {
       const { generate } = configuration.defaults;
       setOptions(withoutTypename(generate));
       setConfigRead(true);

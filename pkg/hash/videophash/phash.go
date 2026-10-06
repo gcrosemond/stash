@@ -24,7 +24,22 @@ const (
 )
 
 func Generate(encoder *ffmpeg.FFMpeg, videoFile *models.VideoFile) (*uint64, error) {
-	sprite, err := generateSprite(encoder, videoFile)
+	sprite, err := generateSprite(encoder, videoFile, 0, videoFile.Duration)
+	if err != nil {
+		return nil, err
+	}
+
+	hash, err := goimagehash.PerceptionHash(sprite)
+	if err != nil {
+		return nil, fmt.Errorf("computing phash from sprite: %w", err)
+	}
+	hashValue := hash.GetHash()
+	return &hashValue, nil
+}
+
+// GenerateSegment generates a phash from a bounded portion of a video.
+func GenerateSegment(encoder *ffmpeg.FFMpeg, videoFile *models.VideoFile, start, duration float64) (*uint64, error) {
+	sprite, err := generateSprite(encoder, videoFile, start, duration)
 	if err != nil {
 		return nil, err
 	}
@@ -77,18 +92,18 @@ func combineImages(images []image.Image) image.Image {
 	return montage
 }
 
-func generateSprite(encoder *ffmpeg.FFMpeg, videoFile *models.VideoFile) (image.Image, error) {
+func generateSprite(encoder *ffmpeg.FFMpeg, videoFile *models.VideoFile, start, duration float64) (image.Image, error) {
 	logger.Infof("[generator] generating phash sprite for %s", videoFile.Path)
 
 	// Generate sprite image offset by 5% on each end to avoid intro/outros
 	chunkCount := columns * rows
-	offset := 0.05 * videoFile.Duration
-	stepSize := (0.9 * videoFile.Duration) / float64(chunkCount)
+	offset := 0.05 * duration
+	stepSize := (0.9 * duration) / float64(chunkCount)
 	var images []image.Image
 	slowSeek := false
 
 	for i := 0; i < chunkCount; i++ {
-		time := offset + (float64(i) * stepSize)
+		time := start + offset + (float64(i) * stepSize)
 
 		img, err := generateSpriteScreenshot(encoder, videoFile.Path, time, slowSeek)
 		if err != nil && !slowSeek {

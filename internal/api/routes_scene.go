@@ -78,6 +78,7 @@ func (rs sceneRoutes) Routes() chi.Router {
 		r.Get("/funscript", rs.Funscript)
 		r.Get("/interactive_csv", rs.InteractiveCSV)
 		r.Get("/interactive_heatmap", rs.InteractiveHeatmap)
+		r.Get("/audio_waveform", rs.AudioWaveform)
 		r.Get("/caption", rs.CaptionLang)
 
 		r.Get("/scene_marker/{sceneMarkerId}/stream", rs.SceneMarkerStream)
@@ -92,6 +93,10 @@ func (rs sceneRoutes) Routes() chi.Router {
 
 func (rs sceneRoutes) StreamDirect(w http.ResponseWriter, r *http.Request) {
 	scene := r.Context().Value(sceneKey).(*models.Scene)
+	if scene.Type == models.SceneTypeVirtual {
+		rs.streamTranscode(w, r, ffmpeg.StreamTypeMP4)
+		return
+	}
 	ss := manager.SceneServer{
 		TxnManager:       rs.txnManager,
 		SceneCoverGetter: rs.sceneFinder,
@@ -108,6 +113,10 @@ func (rs sceneRoutes) StreamWebM(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rs sceneRoutes) StreamMKV(w http.ResponseWriter, r *http.Request) {
+	if scene := r.Context().Value(sceneKey).(*models.Scene); scene.Type == models.SceneTypeVirtual {
+		rs.streamTranscode(w, r, ffmpeg.StreamTypeMKV)
+		return
+	}
 	// only allow mkv streaming if the scene container is an mkv already
 	scene := r.Context().Value(sceneKey).(*models.Scene)
 
@@ -160,9 +169,36 @@ func (rs sceneRoutes) streamTranscode(w http.ResponseWriter, r *http.Request, st
 		Resolution: resolution,
 		StartTime:  ss,
 	}
+	if scene.Type == models.SceneTypeVirtual && scene.StartSeconds != nil && scene.EndSeconds != nil {
+		start, duration, ok := virtualStreamRange(scene, ss)
+		if !ok {
+			http.Error(w, "virtual scene seek is outside its range", http.StatusRequestedRangeNotSatisfiable)
+			return
+		}
+		options.StartTime = start
+		options.Duration = duration
+	}
 
 	logger.Debugf("[transcode] streaming scene %d as %s", scene.ID, streamType.MimeType)
 	streamManager.ServeTranscode(w, r, options)
+}
+
+// virtualStreamRange translates the player-relative seek position into the
+// source movie timeline and limits the transcode to the remaining scene range.
+func virtualStreamRange(scene *models.Scene, relativeStart float64) (start, duration float64, ok bool) {
+	if scene.StartSeconds == nil || scene.EndSeconds == nil || *scene.EndSeconds <= *scene.StartSeconds {
+		return 0, 0, false
+	}
+	if relativeStart < 0 {
+		relativeStart = 0
+	}
+
+	duration = *scene.EndSeconds - *scene.StartSeconds
+	if relativeStart >= duration {
+		return 0, 0, false
+	}
+
+	return *scene.StartSeconds + relativeStart, duration - relativeStart, true
 }
 
 func (rs sceneRoutes) StreamHLS(w http.ResponseWriter, r *http.Request) {
@@ -227,7 +263,7 @@ func (rs sceneRoutes) streamSegment(w http.ResponseWriter, r *http.Request, stre
 		logger.Warnf("[transcode] error parsing query form: %v", err)
 	}
 
-	sceneHash := scene.GetHash(config.GetInstance().GetVideoFileNamingAlgorithm())
+	sceneHash := scene.GetGeneratedHash(config.GetInstance().GetVideoFileNamingAlgorithm())
 
 	segment := chi.URLParam(r, "segment")
 	resolution := r.Form.Get("resolution")
@@ -261,7 +297,7 @@ func (rs sceneRoutes) Screenshot(w http.ResponseWriter, r *http.Request) {
 
 func (rs sceneRoutes) Preview(w http.ResponseWriter, r *http.Request) {
 	scene := r.Context().Value(sceneKey).(*models.Scene)
-	sceneHash := scene.GetHash(config.GetInstance().GetVideoFileNamingAlgorithm())
+	sceneHash := scene.GetGeneratedHash(config.GetInstance().GetVideoFileNamingAlgorithm())
 	filepath := manager.GetInstance().Paths.Scene.GetVideoPreviewPath(sceneHash)
 
 	utils.ServeStaticFile(w, r, filepath)
@@ -269,7 +305,7 @@ func (rs sceneRoutes) Preview(w http.ResponseWriter, r *http.Request) {
 
 func (rs sceneRoutes) Webp(w http.ResponseWriter, r *http.Request) {
 	scene := r.Context().Value(sceneKey).(*models.Scene)
-	sceneHash := scene.GetHash(config.GetInstance().GetVideoFileNamingAlgorithm())
+	sceneHash := scene.GetGeneratedHash(config.GetInstance().GetVideoFileNamingAlgorithm())
 	filepath := manager.GetInstance().Paths.Scene.GetWebpPreviewPath(sceneHash)
 
 	utils.ServeStaticFile(w, r, filepath)
@@ -353,7 +389,7 @@ func (rs sceneRoutes) VttThumbs(w http.ResponseWriter, r *http.Request) {
 	scene, ok := r.Context().Value(sceneKey).(*models.Scene)
 	var sceneHash string
 	if ok && scene != nil {
-		sceneHash = scene.GetHash(config.GetInstance().GetVideoFileNamingAlgorithm())
+		sceneHash = scene.GetGeneratedHash(config.GetInstance().GetVideoFileNamingAlgorithm())
 	} else {
 		sceneHash = chi.URLParam(r, "sceneHash")
 	}
@@ -367,7 +403,7 @@ func (rs sceneRoutes) VttSprite(w http.ResponseWriter, r *http.Request) {
 	scene, ok := r.Context().Value(sceneKey).(*models.Scene)
 	var sceneHash string
 	if ok && scene != nil {
-		sceneHash = scene.GetHash(config.GetInstance().GetVideoFileNamingAlgorithm())
+		sceneHash = scene.GetGeneratedHash(config.GetInstance().GetVideoFileNamingAlgorithm())
 	} else {
 		sceneHash = chi.URLParam(r, "sceneHash")
 	}
@@ -401,6 +437,14 @@ func (rs sceneRoutes) InteractiveHeatmap(w http.ResponseWriter, r *http.Request)
 	scene := r.Context().Value(sceneKey).(*models.Scene)
 	sceneHash := scene.GetHash(config.GetInstance().GetVideoFileNamingAlgorithm())
 	filepath := manager.GetInstance().Paths.Scene.GetInteractiveHeatmapPath(sceneHash)
+
+	utils.ServeStaticFile(w, r, filepath)
+}
+
+func (rs sceneRoutes) AudioWaveform(w http.ResponseWriter, r *http.Request) {
+	scene := r.Context().Value(sceneKey).(*models.Scene)
+	sceneHash := scene.GetHash(config.GetInstance().GetVideoFileNamingAlgorithm())
+	filepath := manager.GetInstance().Paths.Scene.GetAudioWaveformPath(sceneHash)
 
 	utils.ServeStaticFile(w, r, filepath)
 }

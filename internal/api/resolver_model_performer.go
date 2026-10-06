@@ -10,6 +10,7 @@ import (
 	"github.com/stashapp/stash/pkg/image"
 	"github.com/stashapp/stash/pkg/models"
 	"github.com/stashapp/stash/pkg/performer"
+	"github.com/stashapp/stash/pkg/scene"
 )
 
 func (r *performerResolver) AliasList(ctx context.Context, obj *models.Performer) ([]string, error) {
@@ -174,6 +175,17 @@ func (r *performerResolver) Tags(ctx context.Context, obj *models.Performer) (re
 func (r *performerResolver) SceneCount(ctx context.Context, obj *models.Performer) (ret int, err error) {
 	if err := r.withReadTxn(ctx, func(ctx context.Context) error {
 		ret, err = r.repository.Scene.CountByPerformerID(ctx, obj.ID)
+		return err
+	}); err != nil {
+		return 0, err
+	}
+
+	return ret, nil
+}
+
+func (r *performerResolver) MovieSceneCount(ctx context.Context, obj *models.Performer) (ret int, err error) {
+	if err := r.withReadTxn(ctx, func(ctx context.Context) error {
+		ret, err = scene.CountMovieScenesByPerformerID(ctx, r.repository.Scene, obj.ID)
 		return err
 	}); err != nil {
 		return 0, err

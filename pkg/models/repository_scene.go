@@ -28,6 +28,7 @@ type SceneFinder interface {
 	FindByPerformerID(ctx context.Context, performerID int) ([]*Scene, error)
 	FindByGalleryID(ctx context.Context, performerID int) ([]*Scene, error)
 	FindByGroupID(ctx context.Context, groupID int) ([]*Scene, error)
+	FindBySourceSceneID(ctx context.Context, sourceSceneID int) ([]*Scene, error)
 	FindDuplicates(ctx context.Context, distance int, durationDiff float64, filter *SceneFilterType) ([][]*Scene, error)
 }
 
@@ -59,6 +60,7 @@ type SceneUpdater interface {
 	Update(ctx context.Context, updatedScene *Scene) error
 	UpdatePartial(ctx context.Context, id int, updatedScene ScenePartial) (*Scene, error)
 	UpdateCover(ctx context.Context, sceneID int, cover []byte) error
+	UpdateFingerprint(ctx context.Context, sceneID int, fingerprint Fingerprint) error
 }
 
 // SceneDestroyer provides methods to destroy scenes.
@@ -114,6 +116,7 @@ type SceneReader interface {
 	PlayDuration(ctx context.Context) (float64, error)
 	GetCover(ctx context.Context, sceneID int) ([]byte, error)
 	HasCover(ctx context.Context, sceneID int) (bool, error)
+	GetFingerprint(ctx context.Context, sceneID int, fingerprintType string) (*Fingerprint, error)
 }
 
 type OHistoryWriter interface {

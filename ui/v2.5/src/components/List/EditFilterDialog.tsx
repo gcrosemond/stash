@@ -231,6 +231,7 @@ function filterModeToConfigKey(filterMode: FilterMode) {
 interface IEditFilterProps {
   filter: ListFilterModel;
   editingCriterion?: string;
+  hiddenCriterionTypes?: CriterionType[];
   onApply: (filter: ListFilterModel) => void;
   onCancel: () => void;
 }
@@ -238,6 +239,7 @@ interface IEditFilterProps {
 export const EditFilterDialog: React.FC<IEditFilterProps> = ({
   filter,
   editingCriterion,
+  hiddenCriterionTypes = [],
   onApply,
   onCancel,
 }) => {
@@ -274,7 +276,7 @@ export const EditFilterDialog: React.FC<IEditFilterProps> = ({
 
   const criterionOptions = useMemo(() => {
     return [...filterOptions.criterionOptions]
-      .filter((c) => !c.hidden)
+      .filter((c) => !c.hidden && !hiddenCriterionTypes.includes(c.type))
       .sort((a, b) => {
         return intl
           .formatMessage({
@@ -288,7 +290,12 @@ export const EditFilterDialog: React.FC<IEditFilterProps> = ({
             })
           );
       });
-  }, [intl, sfwContentMode, filterOptions.criterionOptions]);
+  }, [
+    intl,
+    sfwContentMode,
+    filterOptions.criterionOptions,
+    hiddenCriterionTypes,
+  ]);
 
   const optionSelected = useCallback(
     (option?: CriterionOption) => {
@@ -636,8 +643,10 @@ export function useShowEditFilter(props: {
   setFilter: (f: ListFilterModel) => void;
   showModal: (content: React.ReactNode) => void;
   closeModal: () => void;
+  hiddenCriterionTypes?: CriterionType[];
 }) {
-  const { filter, setFilter, showModal, closeModal } = props;
+  const { filter, setFilter, showModal, closeModal, hiddenCriterionTypes } =
+    props;
 
   const showEditFilter = useCallback(
     (editingCriterion?: string) => {
@@ -652,10 +661,11 @@ export function useShowEditFilter(props: {
           onApply={onApplyEditFilter}
           onCancel={() => closeModal()}
           editingCriterion={editingCriterion}
+          hiddenCriterionTypes={hiddenCriterionTypes}
         />
       );
     },
-    [filter, setFilter, showModal, closeModal]
+    [filter, setFilter, showModal, closeModal, hiddenCriterionTypes]
   );
 
   return showEditFilter;

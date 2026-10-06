@@ -54,6 +54,14 @@ const messages = defineMessages({
     id: "scenes",
     defaultMessage: "Scenes",
   },
+  movies: {
+    id: "movies",
+    defaultMessage: "Movies",
+  },
+  virtualScenes: {
+    id: "virtual_scenes",
+    defaultMessage: "Virtual Scenes",
+  },
   images: {
     id: "images",
     defaultMessage: "Images",
@@ -104,6 +112,20 @@ const allMenuItems: IMenuItem[] = [
     icon: faPlayCircle,
     hotkey: "g s",
     userCreatable: true,
+  },
+  {
+    name: "movie_scenes",
+    message: messages.movies,
+    href: "/movies",
+    icon: faVideo,
+    hotkey: "g m",
+  },
+  {
+    name: "virtual_scenes",
+    message: messages.virtualScenes,
+    href: "/virtual-scenes",
+    icon: faPlayCircle,
+    hotkey: "g x",
   },
   {
     name: "images",

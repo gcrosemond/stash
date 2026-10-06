@@ -94,6 +94,17 @@ func (r *studioResolver) SceneCount(ctx context.Context, obj *models.Studio, dep
 	return ret, nil
 }
 
+func (r *studioResolver) MovieSceneCount(ctx context.Context, obj *models.Studio, depth *int) (ret int, err error) {
+	if err := r.withReadTxn(ctx, func(ctx context.Context) error {
+		ret, err = scene.CountMovieScenesByStudioID(ctx, r.repository.Scene, obj.ID, depth)
+		return err
+	}); err != nil {
+		return 0, err
+	}
+
+	return ret, nil
+}
+
 func (r *studioResolver) ImageCount(ctx context.Context, obj *models.Studio, depth *int) (ret int, err error) {
 	if err := r.withReadTxn(ctx, func(ctx context.Context) error {
 		ret, err = image.CountByStudioID(ctx, r.repository.Image, obj.ID, depth)

@@ -15,6 +15,7 @@ import {
   useScrollToTopOnPageChange,
 } from "./util";
 import { useConfigurationContext } from "src/hooks/Config";
+import { CriterionType } from "src/models/list-filter/types";
 
 interface IFilteredItemList<
   T extends QueryResult,
@@ -23,6 +24,7 @@ interface IFilteredItemList<
 > {
   filterStateProps: IFilterStateHook;
   queryResultProps: IQueryResultHook<T, E, M>;
+  hiddenCriterionTypes?: CriterionType[];
 }
 
 // Provides the common state and behaviour for filtered item list components
@@ -67,6 +69,7 @@ export function useFilteredItemList<
     closeModal,
     filter,
     setFilter,
+    hiddenCriterionTypes: props.hiddenCriterionTypes,
   });
 
   useListKeyboardShortcuts({

@@ -479,6 +479,7 @@ func (r *mutationResolver) SceneDestroy(ctx context.Context, input models.SceneD
 	trashPath := manager.GetInstance().Config.GetDeleteTrashPath()
 
 	var s *models.Scene
+	var virtualScenes []*models.Scene
 	fileDeleter := &scene.FileDeleter{
 		Deleter:        file.NewDeleterWithTrash(trashPath),
 		FileNamingAlgo: fileNamingAlgo,
@@ -500,6 +501,12 @@ func (r *mutationResolver) SceneDestroy(ctx context.Context, input models.SceneD
 		if s == nil {
 			return fmt.Errorf("scene with id %d not found", sceneID)
 		}
+		if s.Type == models.SceneTypeMovie {
+			virtualScenes, err = qb.FindBySourceSceneID(ctx, s.ID)
+			if err != nil {
+				return err
+			}
+		}
 
 		// kill any running encoders
 		manager.KillRunningStreams(s, fileNamingAlgo)
@@ -513,13 +520,7 @@ func (r *mutationResolver) SceneDestroy(ctx context.Context, input models.SceneD
 	// perform the post-commit actions
 	fileDeleter.Commit()
 
-	// call post hook after performing the other actions
-	r.hookExecutor.ExecutePostHooks(ctx, s.ID, hook.SceneDestroyPost, plugin.SceneDestroyInput{
-		SceneDestroyInput: input,
-		Checksum:          s.Checksum,
-		OSHash:            s.OSHash,
-		Path:              s.Path,
-	}, nil)
+	r.executeSceneDestroyPostHooks(ctx, append([]*models.Scene{s}, virtualScenes...), input)
 
 	return true, nil
 }
@@ -531,6 +532,7 @@ func (r *mutationResolver) ScenesDestroy(ctx context.Context, input models.Scene
 	}
 
 	var scenes []*models.Scene
+	var virtualScenes []*models.Scene
 	fileNamingAlgo := manager.GetInstance().Config.GetVideoFileNamingAlgorithm()
 	trashPath := manager.GetInstance().Config.GetDeleteTrashPath()
 
@@ -557,6 +559,13 @@ func (r *mutationResolver) ScenesDestroy(ctx context.Context, input models.Scene
 			}
 
 			scenes = append(scenes, scene)
+			if scene.Type == models.SceneTypeMovie {
+				children, err := qb.FindBySourceSceneID(ctx, scene.ID)
+				if err != nil {
+					return err
+				}
+				virtualScenes = append(virtualScenes, children...)
+			}
 
 			// kill any running encoders
 			manager.KillRunningStreams(scene, fileNamingAlgo)
@@ -575,17 +584,39 @@ func (r *mutationResolver) ScenesDestroy(ctx context.Context, input models.Scene
 	// perform the post-commit actions
 	fileDeleter.Commit()
 
+	r.executeScenesDestroyPostHooks(ctx, append(scenes, virtualScenes...), input)
+
+	return true, nil
+}
+
+// executeSceneDestroyPostHooks emits a hook for every deleted scene, including
+// virtual scenes cascaded from a movie deletion.
+func (r *mutationResolver) executeSceneDestroyPostHooks(ctx context.Context, scenes []*models.Scene, input models.SceneDestroyInput) {
 	for _, scene := range scenes {
-		// call post hook after performing the other actions
+		sceneInput := input
+		sceneInput.ID = strconv.Itoa(scene.ID)
+		r.hookExecutor.ExecutePostHooks(ctx, scene.ID, hook.SceneDestroyPost, plugin.SceneDestroyInput{
+			SceneDestroyInput: sceneInput,
+			Checksum:          scene.Checksum,
+			OSHash:            scene.OSHash,
+			Path:              scene.Path,
+			Type:              scene.Type,
+		}, nil)
+	}
+}
+
+// executeScenesDestroyPostHooks is the bulk-delete equivalent of
+// executeSceneDestroyPostHooks.
+func (r *mutationResolver) executeScenesDestroyPostHooks(ctx context.Context, scenes []*models.Scene, input models.ScenesDestroyInput) {
+	for _, scene := range scenes {
 		r.hookExecutor.ExecutePostHooks(ctx, scene.ID, hook.SceneDestroyPost, plugin.ScenesDestroyInput{
 			ScenesDestroyInput: input,
 			Checksum:           scene.Checksum,
 			OSHash:             scene.OSHash,
 			Path:               scene.Path,
+			Type:               scene.Type,
 		}, nil)
 	}
-
-	return true, nil
 }
 
 func (r *mutationResolver) SceneAssignFile(ctx context.Context, input AssignSceneFileInput) (bool, error) {
@@ -1338,5 +1369,17 @@ func (r *mutationResolver) SceneGenerateScreenshot(ctx context.Context, id strin
 		jobID = manager.GetInstance().GenerateDefaultScreenshot(ctx, id)
 	}
 
+	return strconv.Itoa(jobID), nil
+}
+
+func (r *mutationResolver) SceneGenerateAudioWaveform(ctx context.Context, id string, overwrite *bool) (string, error) {
+	jobID, err := manager.GetInstance().Generate(ctx, manager.GenerateMetadataInput{
+		AudioWaveforms: true,
+		Overwrite:      overwrite != nil && *overwrite,
+		SceneIDs:       []string{id},
+	})
+	if err != nil {
+		return "", err
+	}
 	return strconv.Itoa(jobID), nil
 }

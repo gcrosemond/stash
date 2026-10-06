@@ -2523,6 +2523,183 @@ func TestSceneQueryPath(t *testing.T) {
 	}
 }
 
+func TestSceneQueryFilesFilterUsesSourceMovieFilesForVirtualScenes(t *testing.T) {
+	const sourceSceneIdx = 1
+
+	withTxn(func(ctx context.Context) error {
+		sourceSceneID := sceneIDs[sourceSceneIdx]
+		virtualFile := &models.VideoFile{
+			BaseFile: &models.BaseFile{
+				Basename:       "virtual-scene-file.mp4",
+				ParentFolderID: folderIDs[folderIdxWithImageFiles],
+			},
+		}
+		require.NoError(t, db.File.Create(ctx, virtualFile))
+
+		start, end := 0.0, 60.0
+		virtual := models.NewScene()
+		virtual.Type = models.SceneTypeVirtual
+		virtual.SourceSceneID = &sourceSceneID
+		virtual.StartSeconds = &start
+		virtual.EndSeconds = &end
+
+		// A virtual scene must filter through its movie's file even if a stale or
+		// legacy file association exists on the virtual scene itself.
+		require.NoError(t, db.Scene.Create(ctx, &virtual, []models.FileID{virtualFile.ID}))
+
+		folderFilter := func(folderIdx int) *models.SceneFilterType {
+			return &models.SceneFilterType{
+				FilesFilter: &models.FileFilterType{
+					ParentFolder: &models.HierarchicalMultiCriterionInput{
+						Value:    []string{strconv.Itoa(int(folderIDs[folderIdx]))},
+						Modifier: models.CriterionModifierIncludes,
+					},
+				},
+			}
+		}
+		allResults := -1
+		findFilter := &models.FindFilterType{PerPage: &allResults}
+
+		matching := queryScene(ctx, t, db.Scene, folderFilter(folderIdxWithSceneFiles), findFilter)
+		matchingIDs := make([]int, len(matching))
+		for i, scene := range matching {
+			matchingIDs[i] = scene.ID
+		}
+		assert.Contains(t, matchingIDs, virtual.ID)
+
+		nonMatching := queryScene(ctx, t, db.Scene, folderFilter(folderIdxWithImageFiles), findFilter)
+		nonMatchingIDs := make([]int, len(nonMatching))
+		for i, scene := range nonMatching {
+			nonMatchingIDs[i] = scene.ID
+		}
+		assert.NotContains(t, nonMatchingIDs, virtual.ID)
+
+		// This is the query shape used by the default mixed Scenes page:
+		// (regular AND folder) OR (virtual AND folder).
+		mixedFilter := folderFilter(folderIdxWithImageFiles)
+		normalType := models.SceneTypeNormal
+		virtualType := models.SceneTypeVirtual
+		mixedFilter.Type = &normalType
+		mixedFilter.Or = &models.SceneFilterType{
+			Type:        &virtualType,
+			FilesFilter: mixedFilter.FilesFilter,
+		}
+		mixedResults := queryScene(ctx, t, db.Scene, mixedFilter, findFilter)
+		mixedIDs := make([]int, len(mixedResults))
+		for i, scene := range mixedResults {
+			mixedIDs[i] = scene.ID
+		}
+		assert.NotContains(t, mixedIDs, virtual.ID)
+
+		return nil
+	})
+}
+
+func TestSceneQueryVirtualSceneCount(t *testing.T) {
+	withTxn(func(ctx context.Context) error {
+		movie := models.NewScene()
+		movie.Type = models.SceneTypeMovie
+		require.NoError(t, db.Scene.Create(ctx, &movie, nil))
+		sourceSceneID := movie.ID
+		start, end := 0.0, 60.0
+		for range 2 {
+			virtual := models.NewScene()
+			virtual.Type = models.SceneTypeVirtual
+			virtual.SourceSceneID = &sourceSceneID
+			virtual.StartSeconds = &start
+			virtual.EndSeconds = &end
+			require.NoError(t, db.Scene.Create(ctx, &virtual, nil))
+		}
+
+		allResults := -1
+		findFilter := &models.FindFilterType{PerPage: &allResults}
+		query := func(modifier models.CriterionModifier, value, value2 int) []int {
+			filter := &models.SceneFilterType{
+				VirtualSceneCount: &models.IntCriterionInput{
+					Value:    value,
+					Value2:   &value2,
+					Modifier: modifier,
+				},
+			}
+			results := queryScene(ctx, t, db.Scene, filter, findFilter)
+			ids := make([]int, len(results))
+			for i, scene := range results {
+				ids[i] = scene.ID
+			}
+			return ids
+		}
+
+		assert.Contains(t, query(models.CriterionModifierEquals, 2, 0), sourceSceneID)
+		assert.NotContains(t, query(models.CriterionModifierNotEquals, 2, 0), sourceSceneID)
+		assert.Contains(t, query(models.CriterionModifierGreaterThan, 1, 0), sourceSceneID)
+		assert.Contains(t, query(models.CriterionModifierLessThan, 3, 0), sourceSceneID)
+		assert.Contains(t, query(models.CriterionModifierBetween, 1, 3), sourceSceneID)
+		assert.NotContains(t, query(models.CriterionModifierNotBetween, 1, 3), sourceSceneID)
+
+		return nil
+	})
+}
+
+func TestSceneQuerySourceMovies(t *testing.T) {
+	withTxn(func(ctx context.Context) error {
+		firstMovie := models.NewScene()
+		firstMovie.Type = models.SceneTypeMovie
+		require.NoError(t, db.Scene.Create(ctx, &firstMovie, nil))
+		secondMovie := models.NewScene()
+		secondMovie.Type = models.SceneTypeMovie
+		require.NoError(t, db.Scene.Create(ctx, &secondMovie, nil))
+
+		createVirtualScene := func(sourceSceneID int) *models.Scene {
+			start, end := 0.0, 60.0
+			virtual := models.NewScene()
+			virtual.Type = models.SceneTypeVirtual
+			virtual.SourceSceneID = &sourceSceneID
+			virtual.StartSeconds = &start
+			virtual.EndSeconds = &end
+			require.NoError(t, db.Scene.Create(ctx, &virtual, nil))
+			return &virtual
+		}
+
+		firstVirtual := createVirtualScene(firstMovie.ID)
+		secondVirtual := createVirtualScene(secondMovie.ID)
+		allResults := -1
+		findFilter := &models.FindFilterType{PerPage: &allResults}
+
+		query := func(criterion *models.MultiCriterionInput) []int {
+			results := queryScene(ctx, t, db.Scene, &models.SceneFilterType{
+				SourceMovies: criterion,
+			}, findFilter)
+			ids := make([]int, len(results))
+			for i, scene := range results {
+				ids[i] = scene.ID
+			}
+			return ids
+		}
+
+		matching := query(&models.MultiCriterionInput{
+			Modifier: models.CriterionModifierIncludes,
+			Value:    []string{strconv.Itoa(firstMovie.ID)},
+		})
+		assert.Contains(t, matching, firstVirtual.ID)
+		assert.NotContains(t, matching, secondVirtual.ID)
+
+		withMovie := query(&models.MultiCriterionInput{
+			Modifier: models.CriterionModifierNotNull,
+		})
+		assert.Contains(t, withMovie, firstVirtual.ID)
+		assert.Contains(t, withMovie, secondVirtual.ID)
+		assert.NotContains(t, withMovie, firstMovie.ID)
+
+		withoutMovie := query(&models.MultiCriterionInput{
+			Modifier: models.CriterionModifierIsNull,
+		})
+		assert.Contains(t, withoutMovie, firstMovie.ID)
+		assert.NotContains(t, withoutMovie, firstVirtual.ID)
+
+		return nil
+	})
+}
+
 func TestSceneQueryURL(t *testing.T) {
 	const sceneIdx = 1
 	sceneURL := getSceneStringValue(sceneIdx, urlField)

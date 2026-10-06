@@ -8,6 +8,7 @@ import (
 	"github.com/stashapp/stash/internal/api/loaders"
 	"github.com/stashapp/stash/internal/api/urlbuilders"
 	"github.com/stashapp/stash/internal/manager"
+	"github.com/stashapp/stash/pkg/ffmpeg"
 	"github.com/stashapp/stash/pkg/models"
 	"github.com/stashapp/stash/pkg/session"
 	"github.com/stashapp/stash/pkg/signedurl"
@@ -41,6 +42,35 @@ func (r *sceneResolver) getPrimaryFile(ctx context.Context, obj *models.Scene) (
 	}
 
 	return nil, nil
+}
+
+func (r *sceneResolver) SourceScene(ctx context.Context, obj *models.Scene) (*models.Scene, error) {
+	if obj.SourceSceneID == nil {
+		return nil, nil
+	}
+
+	var ret *models.Scene
+	err := r.withReadTxn(ctx, func(ctx context.Context) error {
+		var err error
+		ret, err = r.repository.Scene.Find(ctx, *obj.SourceSceneID)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return ret, nil
+}
+
+func (r *sceneResolver) IgnoredRanges(ctx context.Context, obj *models.Scene) (ret []*models.SceneIgnoredRange, err error) {
+	if err := r.withReadTxn(ctx, func(ctx context.Context) error {
+		ret, err = r.repository.SceneIgnoredRange.FindBySceneID(ctx, obj.ID)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+
+	return ret, nil
 }
 
 func (r *sceneResolver) getFiles(ctx context.Context, obj *models.Scene) ([]*models.VideoFile, error) {
@@ -93,6 +123,11 @@ func (r *sceneResolver) Files(ctx context.Context, obj *models.Scene) ([]*VideoF
 	ret := make([]*VideoFile, len(files))
 
 	for i, f := range files {
+		if obj.Type == models.SceneTypeVirtual && obj.StartSeconds != nil && obj.EndSeconds != nil {
+			copy := *f
+			copy.Duration = *obj.EndSeconds - *obj.StartSeconds
+			f = &copy
+		}
 		ret[i] = &VideoFile{
 			VideoFile: f,
 		}
@@ -145,11 +180,12 @@ func (r *sceneResolver) Paths(ctx context.Context, obj *models.Scene) (*ScenePat
 	screenshotPath := builder.GetScreenshotURL()
 	previewPath := builder.GetStreamPreviewURL()
 	webpPath := builder.GetStreamPreviewImageURL()
-	objHash := obj.GetHash(config.GetVideoFileNamingAlgorithm())
+	objHash := obj.GetGeneratedHash(config.GetVideoFileNamingAlgorithm())
 	vttPath := builder.GetSpriteVTTURL(objHash)
 	spritePath := builder.GetSpriteURL(objHash)
 	funscriptPath := builder.GetFunscriptURL(config.GetAPIKey()).String()
 	interactiveHeatmap := builder.GetInteractiveHeatmapURL()
+	audioWaveform := builder.GetAudioWaveformURL()
 
 	return &ScenePathsType{
 		Screenshot:         &screenshotPath,
@@ -160,6 +196,7 @@ func (r *sceneResolver) Paths(ctx context.Context, obj *models.Scene) (*ScenePat
 		Sprite:             &spritePath,
 		Funscript:          &funscriptPath,
 		InteractiveHeatmap: &interactiveHeatmap,
+		AudioWaveform:      &audioWaveform,
 		Caption:            &captionBasePath,
 	}, nil
 }
@@ -330,6 +367,9 @@ func (r *sceneResolver) SceneStreams(ctx context.Context, obj *models.Scene) ([]
 
 	// Build the base stream URL with signing params or apikey
 	streamURL := builder.GetStreamURL("")
+	if obj.Type == models.SceneTypeVirtual {
+		streamURL.Path += ".mp4"
+	}
 	if config.HasCredentials() {
 		userID := session.GetCurrentUserID(ctx)
 		if userID == nil {
@@ -343,6 +383,16 @@ func (r *sceneResolver) SceneStreams(ctx context.Context, obj *models.Scene) ([]
 			v.Set("apikey", apiKey)
 			streamURL.RawQuery = v.Encode()
 		}
+	}
+
+	if obj.Type == models.SceneTypeVirtual {
+		label := "MP4"
+		mimeType := ffmpeg.MimeMp4Video
+		return []*manager.SceneStreamEndpoint{{
+			URL:      streamURL.String(),
+			MimeType: &mimeType,
+			Label:    &label,
+		}}, nil
 	}
 
 	return manager.GetSceneStreamPaths(obj, streamURL, config.GetMaxStreamingTranscodeSize())

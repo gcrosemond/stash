@@ -83,3 +83,19 @@ func TestScenePartial_UpdateInput(t *testing.T) {
 		})
 	}
 }
+
+func TestSceneGetGeneratedHashSeparatesVirtualScenes(t *testing.T) {
+	physical := Scene{ID: 10, Type: SceneTypeNormal, Checksum: "checksum"}
+	virtualOne := Scene{ID: 20, Type: SceneTypeVirtual, Checksum: "checksum"}
+	virtualTwo := Scene{ID: 21, Type: SceneTypeVirtual, Checksum: "checksum"}
+
+	if got := physical.GetGeneratedHash(HashAlgorithmMd5); got != "checksum" {
+		t.Fatalf("physical generated hash = %q, want checksum", got)
+	}
+	if got := virtualOne.GetGeneratedHash(HashAlgorithmMd5); got != "virtual-20-checksum" {
+		t.Fatalf("virtual generated hash = %q, want virtual-20-checksum", got)
+	}
+	if virtualOne.GetGeneratedHash(HashAlgorithmMd5) == virtualTwo.GetGeneratedHash(HashAlgorithmMd5) {
+		t.Fatal("virtual scenes must have distinct generated asset namespaces")
+	}
+}

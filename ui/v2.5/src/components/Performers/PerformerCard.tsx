@@ -49,19 +49,34 @@ interface IPerformerCardProps {
 const PerformerCardPopovers: React.FC<IPerformerCardProps> = PatchComponent(
   "PerformerCard.Popovers",
   ({ performer, extraCriteria }) => {
+    const sceneCount = performer.scene_count - performer.movie_scene_count;
+
     function maybeRenderScenesPopoverButton() {
-      if (!performer.scene_count) return;
+      if (!sceneCount) return;
 
       return (
         <PopoverCountButton
           className="scene-count"
           type="scene"
-          count={performer.scene_count}
+          count={sceneCount}
           url={NavUtils.makePerformerScenesUrl(
             performer,
             extraCriteria?.performer,
             extraCriteria?.scenes
           )}
+        />
+      );
+    }
+
+    function maybeRenderMoviesPopoverButton() {
+      if (!performer.movie_scene_count) return;
+
+      return (
+        <PopoverCountButton
+          className="movie-count"
+          type="movie"
+          count={performer.movie_scene_count}
+          url={`/performers/${performer.id}/movies`}
         />
       );
     }
@@ -141,7 +156,8 @@ const PerformerCardPopovers: React.FC<IPerformerCardProps> = PatchComponent(
     }
 
     if (
-      performer.scene_count ||
+      sceneCount ||
+      performer.movie_scene_count ||
       performer.image_count ||
       performer.gallery_count ||
       performer.tags.length > 0 ||
@@ -153,6 +169,7 @@ const PerformerCardPopovers: React.FC<IPerformerCardProps> = PatchComponent(
           <hr />
           <ButtonGroup className="card-popovers">
             {maybeRenderScenesPopoverButton()}
+            {maybeRenderMoviesPopoverButton()}
             {maybeRenderGroupsPopoverButton()}
             {maybeRenderImagesPopoverButton()}
             {maybeRenderGalleriesPopoverButton()}

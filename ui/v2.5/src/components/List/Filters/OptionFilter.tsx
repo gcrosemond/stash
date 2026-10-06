@@ -116,7 +116,10 @@ export const SidebarOptionFilter: React.FC<ISidebarFilter> = ({
   ) as ModifierCriterion<CriterionValue>[];
   const criterion = criteria.length > 0 ? criteria[0] : null;
   const { options: criterionOptions = [] } = option;
-  const currentValues = criteria.flatMap((c) => c.value as string[]);
+  const currentValues = criteria.flatMap((c) => {
+    const value = c.value as string | string[];
+    return Array.isArray(value) ? value : [value];
+  });
 
   const hasNullModifiers =
     option.modifierOptions.includes(CriterionModifier.IsNull) &&
@@ -195,12 +198,13 @@ export const SidebarOptionFilter: React.FC<ISidebarFilter> = ({
       return;
     }
 
-    const cv = newCriterion.value as string[];
-    if (cv.includes(item.id)) {
+    const value = newCriterion.value as string | string[];
+    const values = Array.isArray(value) ? value : [value];
+    if (values.includes(item.id)) {
       return;
-    } else {
-      newCriterion.value = [...cv, item.id];
     }
+
+    newCriterion.value = Array.isArray(value) ? [...value, item.id] : item.id;
 
     setFilter(filter.replaceCriteria(option.type, [newCriterion]));
   }

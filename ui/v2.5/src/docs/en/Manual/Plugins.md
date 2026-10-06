@@ -283,6 +283,28 @@ Plugin tasks triggered by a hook include an argument named `hookContext` in the 
 
 The `input` field contains the JSON graphql input passed to the original operation. This will differ between operations. For hooks triggered by operations in a scan or clean, the input will be nil. `inputFields` is populated in update operations to indicate which fields were passed to the operation, to differentiate between missing and empty fields.
 
+Scene hooks apply to normal scenes, movies, and virtual scenes. Existing plugins can treat all three as ordinary scenes: the usual `findScene` query continues to return the standard scene fields. A plugin that needs to distinguish them can inspect `Scene.type`:
+
+* `NORMAL`: a regular scene with its own media file.
+* `MOVIE`: a physical scene that is the source for virtual scenes.
+* `VIRTUAL`: a time range of a movie; `source_scene`, `start_seconds`, and `end_seconds` identify its source and bounds.
+
+For create and update hooks, query the scene by `hookContext.id` after the hook fires. Scene destroy hook input includes `type`, alongside the path and hashes, because the deleted scene can no longer be queried. Deleting or reverting a movie emits an individual `Scene.Destroy.Post` hook for every virtual scene removed as part of that operation.
+
+For example, a plugin can request the optional virtual-scene information only when it needs it:
+
+```graphql
+query HookScene($id: ID!) {
+  findScene(id: $id) {
+    id
+    type
+    source_scene { id }
+    start_seconds
+    end_seconds
+  }
+}
+```
+
 For example, here is the `args` values for a Scene update operation:
 
 ```

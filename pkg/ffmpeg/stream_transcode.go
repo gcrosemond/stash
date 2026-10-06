@@ -147,6 +147,7 @@ type TranscodeOptions struct {
 	VideoFile  *models.VideoFile
 	Resolution string
 	StartTime  float64
+	Duration   float64
 }
 
 func (o TranscodeOptions) FileGetCodec(sm *StreamManager, maxTranscodeSize int) (codec VideoCodec) {
@@ -210,6 +211,9 @@ func (o TranscodeOptions) makeStreamArgs(sm *StreamManager) Args {
 	}
 
 	args = args.Input(o.VideoFile.Path)
+	if o.Duration > 0 {
+		args = args.Duration(o.Duration)
+	}
 
 	videoOnly := ProbeAudioCodec(o.VideoFile.AudioCodec) == MissingUnsupported
 

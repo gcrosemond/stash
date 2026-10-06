@@ -254,6 +254,8 @@ export const App: React.FC = () => {
           <Switch>
             <Route exact path="/" component={FrontPage} />
             <Route path="/scenes" component={Scenes} />
+            <Route path="/movies" component={Scenes} />
+            <Route path="/virtual-scenes" component={Scenes} />
             <Route path="/images" component={Images} />
             <Route path="/galleries" component={Galleries} />
             <Route path="/performers" component={Performers} />

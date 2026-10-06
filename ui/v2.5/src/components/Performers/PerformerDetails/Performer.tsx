@@ -50,6 +50,8 @@ import { PatchComponent } from "src/patch";
 import { ILightboxImage } from "src/hooks/Lightbox/types";
 import { goBackOrReplace } from "src/utils/history";
 import { OCounterButton } from "src/components/Shared/CountButton";
+import { RelatedSceneTabTitle } from "src/components/Scenes/RelatedSceneTabTitle";
+import { usePerformerFilterHook } from "src/core/performers";
 
 interface IProps {
   performer: GQL.PerformerDataFragment;
@@ -64,6 +66,7 @@ interface IPerformerParams {
 const validTabs = [
   "default",
   "scenes",
+  "movies",
   "galleries",
   "images",
   "groups",
@@ -80,6 +83,7 @@ const PerformerTabs: React.FC<{
   performer: GQL.PerformerDataFragment;
   abbreviateCounter: boolean;
 }> = ({ tabKey, performer, abbreviateCounter }) => {
+  const performerFilterHook = usePerformerFilterHook(performer);
   const populatedDefaultTab = useMemo(() => {
     let ret: TabKey = "scenes";
     if (performer.scene_count === 0) {
@@ -125,9 +129,8 @@ const PerformerTabs: React.FC<{
       <Tab
         eventKey="scenes"
         title={
-          <TabTitleCounter
-            messageID="scenes"
-            count={performer.scene_count}
+          <RelatedSceneTabTitle
+            filterHook={performerFilterHook}
             abbreviateCounter={abbreviateCounter}
           />
         }
@@ -135,6 +138,23 @@ const PerformerTabs: React.FC<{
         <PerformerScenesPanel
           active={activeTabKey === "scenes"}
           performer={performer}
+        />
+      </Tab>
+
+      <Tab
+        eventKey="movies"
+        title={
+          <RelatedSceneTabTitle
+            filterHook={performerFilterHook}
+            movies
+            abbreviateCounter={abbreviateCounter}
+          />
+        }
+      >
+        <PerformerScenesPanel
+          active={activeTabKey === "movies"}
+          performer={performer}
+          movies
         />
       </Tab>
 

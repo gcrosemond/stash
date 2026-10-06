@@ -90,6 +90,10 @@ export const StudioCard: React.FC<IProps> = PatchComponent(
     const sceneCount = showChildContent
       ? studio.scene_count_all
       : studio.scene_count;
+    const movieSceneCount = showChildContent
+      ? studio.movie_scene_count_all
+      : studio.movie_scene_count;
+    const regularSceneCount = sceneCount - movieSceneCount;
     const performerCount = showChildContent
       ? studio.performer_count_all
       : studio.performer_count;
@@ -109,14 +113,27 @@ export const StudioCard: React.FC<IProps> = PatchComponent(
     }
 
     function maybeRenderScenesPopoverButton() {
-      if (!sceneCount) return;
+      if (!regularSceneCount) return;
 
       return (
         <PopoverCountButton
           className="scene-count"
           type="scene"
-          count={sceneCount}
+          count={regularSceneCount}
           url={NavUtils.makeStudioScenesUrl(studio)}
+        />
+      );
+    }
+
+    function maybeRenderMoviesPopoverButton() {
+      if (!movieSceneCount) return;
+
+      return (
+        <PopoverCountButton
+          className="movie-count"
+          type="movie"
+          count={movieSceneCount}
+          url={`/studios/${studio.id}/movies`}
         />
       );
     }
@@ -219,7 +236,8 @@ export const StudioCard: React.FC<IProps> = PatchComponent(
 
     function maybeRenderPopoverButtonGroup() {
       if (
-        sceneCount ||
+        regularSceneCount ||
+        movieSceneCount ||
         studio.image_count ||
         studio.gallery_count ||
         studio.group_count ||
@@ -233,6 +251,7 @@ export const StudioCard: React.FC<IProps> = PatchComponent(
             <hr />
             <ButtonGroup className="card-popovers">
               {maybeRenderScenesPopoverButton()}
+              {maybeRenderMoviesPopoverButton()}
               {maybeRenderGroupsPopoverButton()}
               {maybeRenderImagesPopoverButton()}
               {maybeRenderGalleriesPopoverButton()}

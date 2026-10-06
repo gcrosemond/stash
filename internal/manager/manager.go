@@ -115,6 +115,9 @@ func (s *Manager) RefreshConfig() {
 		if err := fsutil.EnsureDir(s.Paths.Generated.InteractiveHeatmap); err != nil {
 			logger.Warnf("could not create interactive heatmaps directory: %v", err)
 		}
+		if err := fsutil.EnsureDir(s.Paths.Generated.AudioWaveforms); err != nil {
+			logger.Warnf("could not create audio waveforms directory: %v", err)
+		}
 
 		s.ImageThumbnailGenerateWaitGroup.Size = cfg.GetParallelTasksWithAutoDetection()
 	}

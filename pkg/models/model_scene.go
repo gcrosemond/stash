@@ -3,6 +3,7 @@ package models
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"strconv"
 	"time"
@@ -10,13 +11,18 @@ import (
 
 // Scene stores the metadata for a single video scene.
 type Scene struct {
-	ID             int    `json:"id"`
-	Title          string `json:"title"`
-	Code           string `json:"code"`
-	Details        string `json:"details"`
-	Director       string `json:"director"`
-	Date           *Date  `json:"date"`
-	ProductionDate *Date  `json:"production_date"`
+	ID             int       `json:"id"`
+	Type           SceneType `json:"type"`
+	SourceSceneID  *int      `json:"source_scene_id"`
+	StartSeconds   *float64  `json:"start_seconds"`
+	EndSeconds     *float64  `json:"end_seconds"`
+	CoverSeconds   *float64  `json:"cover_seconds"`
+	Title          string    `json:"title"`
+	Code           string    `json:"code"`
+	Details        string    `json:"details"`
+	Director       string    `json:"director"`
+	Date           *Date     `json:"date"`
+	ProductionDate *Date     `json:"production_date"`
 	// Rating expressed in 1-100 scale
 	Rating    *int `json:"rating"`
 	Organized bool `json:"organized"`
@@ -46,9 +52,20 @@ type Scene struct {
 	StashIDs     RelatedStashIDs `json:"stash_ids"`
 }
 
+// SceneType identifies whether a scene is an ordinary scene, a movie source,
+// or a virtual scene backed by a time range in a movie source.
+type SceneType string
+
+const (
+	SceneTypeNormal  SceneType = "NORMAL"
+	SceneTypeMovie   SceneType = "MOVIE"
+	SceneTypeVirtual SceneType = "VIRTUAL"
+)
+
 func NewScene() Scene {
 	currentTime := time.Now()
 	return Scene{
+		Type:      SceneTypeNormal,
 		CreatedAt: currentTime,
 		UpdatedAt: currentTime,
 	}
@@ -71,6 +88,11 @@ type UpdateSceneInput struct {
 // ScenePartial represents part of a Scene object. It is used to update
 // the database entry.
 type ScenePartial struct {
+	Type           OptionalString
+	SourceSceneID  OptionalInt
+	StartSeconds   OptionalFloat64
+	EndSeconds     OptionalFloat64
+	CoverSeconds   OptionalFloat64
 	Title          OptionalString
 	Code           OptionalString
 	Details        OptionalString
@@ -273,6 +295,17 @@ func (s Scene) GetHash(hashAlgorithm HashAlgorithm) string {
 	}
 
 	return ""
+}
+
+// GetGeneratedHash returns the namespace used for generated scene assets.
+// Virtual scenes share a physical file with their source movie and therefore
+// must never reuse the movie's generated asset paths.
+func (s Scene) GetGeneratedHash(hashAlgorithm HashAlgorithm) string {
+	hash := s.GetHash(hashAlgorithm)
+	if s.Type == SceneTypeVirtual {
+		return fmt.Sprintf("virtual-%d-%s", s.ID, hash)
+	}
+	return hash
 }
 
 // SceneFileType represents the file metadata for a scene.

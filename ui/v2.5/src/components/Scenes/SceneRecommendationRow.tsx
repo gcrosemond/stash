@@ -5,6 +5,7 @@ import { SceneQueue } from "src/models/sceneQueue";
 import { ListFilterModel } from "src/models/list-filter/filter";
 import { PatchComponent } from "src/patch";
 import { FilteredRecommendationRow } from "../FrontPage/FilteredRecommendationRow";
+import { normalSceneFilter } from "./sceneTypeFilters";
 
 interface IProps {
   isTouch: boolean;
@@ -15,25 +16,29 @@ interface IProps {
 export const SceneRecommendationRow: React.FC<IProps> = PatchComponent(
   "SceneRecommendationRow",
   (props) => {
-    const result = useFindScenes(props.filter);
+    const filter = useMemo(
+      () => normalSceneFilter(props.filter.clone()),
+      [props.filter]
+    );
+    const result = useFindScenes(filter);
     const count = result.data?.findScenes.count ?? 0;
 
     const queue = useMemo(() => {
-      return SceneQueue.fromListFilterModel(props.filter);
-    }, [props.filter]);
+      return SceneQueue.fromListFilterModel(filter);
+    }, [filter]);
 
     return (
       <FilteredRecommendationRow
         className="scene-recommendations"
         heading={props.header}
-        url={`/scenes?${props.filter.makeQueryParameters()}`}
+        url={`/scenes?${filter.makeQueryParameters()}`}
         count={count}
         loading={result.loading}
         isTouch={props.isTouch}
-        filter={props.filter}
+        filter={filter}
       >
         {result.loading
-          ? [...Array(props.filter.itemsPerPage)].map((i) => (
+          ? [...Array(filter.itemsPerPage)].map((i) => (
               <div key={`_${i}`} className="scene-skeleton skeleton-card"></div>
             ))
           : result.data?.findScenes.scenes.map((scene, index) => (

@@ -18,6 +18,7 @@ import {
   useListSceneScrapers,
   mutateReloadScrapers,
   queryScrapeSceneQueryFragment,
+  useFindScene,
 } from "src/core/StashService";
 import { Icon } from "src/components/Shared/Icon";
 import { LoadingIndicator } from "src/components/Shared/LoadingIndicator";
@@ -95,6 +96,13 @@ export const SceneEditPanel: React.FC<IProps> = ({
   const [studio, setStudio] = useState<Studio | null>(null);
 
   const Scrapers = useListSceneScrapers();
+  const sourceSceneQuery = useFindScene(scene.source_scene_id ?? "");
+  const virtualScenesQuery = GQL.useFindVirtualScenesQuery({
+    skip: !scene.source_scene_id,
+    variables: {
+      source_movie_ids: scene.source_scene_id ? [scene.source_scene_id] : [],
+    },
+  });
 
   const fragmentScrapers: GQL.Scraper[] = useMemo(() => {
     return (
@@ -119,6 +127,8 @@ export const SceneEditPanel: React.FC<IProps> = ({
     useState<boolean>(false);
   const [scrapedScene, setScrapedScene] = useState<GQL.ScrapedScene | null>();
   const [endpoint, setEndpoint] = useState<string>();
+  const [movieGroupSceneIndexes, setMovieGroupSceneIndexes] =
+    useState<Map<string, number>>();
 
   useEffect(() => {
     setGalleries(
@@ -283,24 +293,56 @@ export const SceneEditPanel: React.FC<IProps> = ({
     }
   });
 
-  function onSetGroups(items: Group[]) {
-    setGroups(items);
+  function reviewMetadataFromMovie() {
+    const source = sourceSceneQuery.data?.findScene;
+    if (!source) return;
 
-    const existingGroups = formik.values.groups;
+    // Scene numbers in a movie are its one-based timeline positions. Keep the
+    // mapping separate from the scraper payload so the review dialog still
+    // controls which source groups are applied.
+    const virtualScenes = [...(virtualScenesQuery.data?.findScenes.scenes ?? [])].sort(
+        (a, b) =>
+          (a.start_seconds ?? 0) - (b.start_seconds ?? 0) ||
+          Number(a.id) - Number(b.id)
+      );
+    const sceneNumber =
+      virtualScenes.findIndex((item) => item.id === scene.id) + 1;
+    setMovieGroupSceneIndexes(
+      sceneNumber > 0
+        ? new Map(source.groups.map((entry) => [entry.group.id, sceneNumber]))
+        : undefined
+    );
 
-    const newGroups = items.map((m) => {
-      const existing = existingGroups.find((mm) => mm.group_id === m.id);
-      if (existing) {
-        return existing;
-      }
-
-      return {
-        group_id: m.id,
-        scene_index: null,
-      };
+    // Use the normal scrape review dialog so users choose which movie fields
+    // to merge into the virtual scene instead of overwriting the edit form.
+    setEndpoint(undefined);
+    setScrapedScene({
+      title: source.title,
+      code: source.code,
+      details: source.details,
+      director: source.director,
+      urls: source.urls,
+      date: source.date,
+      production_date: source.production_date,
+      studio: source.studio
+        ? {
+            stored_id: source.studio.id,
+            name: source.studio.name,
+          }
+        : undefined,
+      performers: source.performers.map((performer) => ({
+        stored_id: performer.id,
+        name: performer.name,
+      })),
+      groups: source.groups.map((entry) => ({
+        stored_id: entry.group.id,
+        name: entry.group.name,
+      })),
+      tags: source.tags.map((tag) => ({
+        stored_id: tag.id,
+        name: tag.name,
+      })),
     });
-
-    formik.setFieldValue("groups", newGroups);
   }
 
   async function onSave(input: InputValues, andNew?: boolean) {
@@ -418,9 +460,10 @@ export const SceneEditPanel: React.FC<IProps> = ({
 
   function onScrapeDialogClosed(sceneData?: GQL.ScrapedSceneDataFragment) {
     if (sceneData) {
-      updateSceneFromScrapedScene(sceneData);
+      updateSceneFromScrapedScene(sceneData, movieGroupSceneIndexes);
     }
     setScrapedScene(undefined);
+    setMovieGroupSceneIndexes(undefined);
   }
 
   function maybeRenderScrapeDialog() {
@@ -487,7 +530,8 @@ export const SceneEditPanel: React.FC<IProps> = ({
   }
 
   function updateSceneFromScrapedScene(
-    updatedScene: GQL.ScrapedSceneDataFragment
+    updatedScene: GQL.ScrapedSceneDataFragment,
+    inheritedGroupSceneIndexes?: Map<string, number>
   ) {
     if (updatedScene.title) {
       formik.setFieldValue("title", updatedScene.title);
@@ -549,11 +593,25 @@ export const SceneEditPanel: React.FC<IProps> = ({
       });
 
       if (idMovis.length > 0) {
-        onSetGroups(
-          idMovis.map((p) => {
+        const selectedGroups = idMovis.map((p) => {
+          return {
+            id: p.stored_id!,
+            name: p.name ?? "",
+          };
+        });
+        setGroups(selectedGroups);
+        formik.setFieldValue(
+          "groups",
+          selectedGroups.map((group) => {
+            const existing = formik.values.groups.find(
+              (entry) => entry.group_id === group.id
+            );
             return {
-              id: p.stored_id!,
-              name: p.name ?? "",
+              group_id: group.id,
+              scene_index:
+                inheritedGroupSceneIndexes?.get(group.id) ??
+                existing?.scene_index ??
+                null,
             };
           })
         );
@@ -850,6 +908,22 @@ export const SceneEditPanel: React.FC<IProps> = ({
           {!isNew && (
             <div className="ml-auto text-right d-flex">
               <ButtonGroup className="scraper-group">
+                {scene.type === GQL.SceneType.Virtual &&
+                  scene.source_scene_id && (
+                    <Button
+                      className="from-movie-button"
+                      variant="secondary"
+                      disabled={
+                        sourceSceneQuery.loading ||
+                        virtualScenesQuery.loading ||
+                        !sourceSceneQuery.data?.findScene
+                      }
+                      onClick={reviewMetadataFromMovie}
+                      title="Review metadata from the source movie"
+                    >
+                      From movie
+                    </Button>
+                  )}
                 <ScraperMenu
                   toggle={intl.formatMessage({ id: "actions.scrape_with" })}
                   stashBoxes={stashConfig?.general.stashBoxes ?? []}

@@ -27,6 +27,10 @@ func (t *GenerateTranscodeTask) GetDescription() string {
 }
 
 func (t *GenerateTranscodeTask) Start(ctx context.Context) {
+	if t.Scene.Type == models.SceneTypeVirtual {
+		logger.Debugf("skipping generic transcode generation for virtual scene %d; playback is range-bounded", t.Scene.ID)
+		return
+	}
 	hasTranscode := HasTranscode(&t.Scene, t.fileNamingAlgorithm)
 	if !t.Overwrite && hasTranscode {
 		return
@@ -70,7 +74,7 @@ func (t *GenerateTranscodeTask) Start(ctx context.Context) {
 		return
 	}
 
-	sceneHash := t.Scene.GetHash(t.fileNamingAlgorithm)
+	sceneHash := t.Scene.GetGeneratedHash(t.fileNamingAlgorithm)
 	transcodeSize := config.GetInstance().GetMaxTranscodeSize()
 
 	w, h := videoFile.TranscodeScale(transcodeSize.GetMaxResolution())
@@ -108,6 +112,9 @@ func (t *GenerateTranscodeTask) Start(ctx context.Context) {
 // used only when counting files to generate, doesn't affect the actual transcode generation
 // if container is missing from DB it is treated as non supported in order not to delay the user
 func (t *GenerateTranscodeTask) required() bool {
+	if t.Scene.Type == models.SceneTypeVirtual {
+		return false
+	}
 	f := t.Scene.Files.Primary()
 	if f == nil {
 		return false

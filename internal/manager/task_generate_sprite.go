@@ -4,10 +4,31 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/stashapp/stash/pkg/ffmpeg"
 	"github.com/stashapp/stash/pkg/fsutil"
 	"github.com/stashapp/stash/pkg/logger"
 	"github.com/stashapp/stash/pkg/models"
 )
+
+func configureVirtualSpriteRange(scene models.Scene, videoFile *ffmpeg.VideoFile) (float64, int64, error) {
+	if scene.Type != models.SceneTypeVirtual {
+		return 0, 0, nil
+	}
+
+	if scene.StartSeconds == nil || scene.EndSeconds == nil || *scene.EndSeconds <= *scene.StartSeconds {
+		return 0, 0, fmt.Errorf("virtual scene %d has an invalid range", scene.ID)
+	}
+
+	startTime := *scene.StartSeconds
+	videoFile.VideoStreamDuration = *scene.EndSeconds - startTime
+	startFrame := int64(0)
+	if videoFile.FrameRate > 0 {
+		startFrame = int64(startTime * videoFile.FrameRate)
+		videoFile.FrameCount = int64(videoFile.VideoStreamDuration * videoFile.FrameRate)
+	}
+
+	return startTime, startFrame, nil
+}
 
 type GenerateSpriteTask struct {
 	Scene               models.Scene
@@ -31,7 +52,13 @@ func (t *GenerateSpriteTask) Start(ctx context.Context) {
 		return
 	}
 
-	sceneHash := t.Scene.GetHash(t.fileNamingAlgorithm)
+	startTime, startFrame, err := configureVirtualSpriteRange(t.Scene, videoFile)
+	if err != nil {
+		logger.Errorf("%s, skipping sprite generation", err)
+		return
+	}
+
+	sceneHash := t.Scene.GetGeneratedHash(t.fileNamingAlgorithm)
 	imagePath := instance.Paths.Scene.GetSpriteImageFilePath(sceneHash)
 	vttPath := instance.Paths.Scene.GetSpriteVttFilePath(sceneHash)
 
@@ -51,6 +78,8 @@ func (t *GenerateSpriteTask) Start(ctx context.Context) {
 		return
 	}
 	generator.Overwrite = t.Overwrite
+	generator.StartTime = startTime
+	generator.StartFrame = startFrame
 
 	if err := generator.Generate(); err != nil {
 		logger.Errorf("error generating sprite: %s", err.Error())
@@ -69,7 +98,7 @@ func (t GenerateSpriteTask) required() bool {
 		return true
 	}
 
-	sceneHash := t.Scene.GetHash(t.fileNamingAlgorithm)
+	sceneHash := t.Scene.GetGeneratedHash(t.fileNamingAlgorithm)
 	return !t.doesSpriteExist(sceneHash)
 }
 

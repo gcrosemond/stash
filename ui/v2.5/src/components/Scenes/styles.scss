@@ -24,7 +24,8 @@
 }
 
 .performer-tag-container,
-.group-tag-container {
+.group-tag-container,
+.scene-tag-container {
   display: inline-block;
   margin: 5px;
 }
@@ -132,6 +133,62 @@
   }
 }
 
+.movie-detail-scenes {
+  margin: 1.5rem 0;
+
+  .movie-detail-scene-list {
+    display: grid;
+    gap: 0.5rem;
+    grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  }
+
+  .movie-detail-scene {
+    align-items: center;
+    background: $gray-800;
+    border: 1px solid $gray-700;
+    border-radius: 0.25rem;
+    color: inherit;
+    display: flex;
+    min-width: 0;
+    overflow: hidden;
+    text-decoration: none;
+
+    &:hover {
+      background: $gray-700;
+      color: inherit;
+      text-decoration: none;
+    }
+
+    img,
+    .movie-detail-scene-placeholder {
+      background: $black;
+      flex: 0 0 auto;
+      height: 3.75rem;
+      object-fit: cover;
+      width: 6.5rem;
+    }
+  }
+
+  .movie-detail-scene-copy {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    padding: 0.5rem 0.65rem;
+
+    strong,
+    small {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    small {
+      color: $gray-500;
+      margin-top: 0.15rem;
+    }
+  }
+}
+
 textarea.scene-description {
   min-height: 150px;
 }
@@ -175,7 +232,8 @@ textarea.scene-description {
 }
 
 .scene-specs-overlay,
-.scene-interactive-speed-overlay {
+.scene-interactive-speed-overlay,
+.virtual-scene-overlay {
   bottom: 1rem;
   color: $text-color;
   display: block;
@@ -200,6 +258,23 @@ textarea.scene-description {
 
 .extra-scene-info {
   display: none;
+}
+
+.virtual-scene-overlay {
+  align-items: center;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  display: flex;
+  font-size: 0.7rem;
+  font-weight: 700;
+  height: 1.25rem;
+  justify-content: center;
+  left: 0.7rem;
+  line-height: 1;
+  padding: 0;
+  right: auto;
+  text-transform: uppercase;
+  width: 1.25rem;
 }
 
 .overlay-resolution {
@@ -722,6 +797,12 @@ input[type="range"].blue-slider {
 }
 
 .scraper-group {
+  .from-movie-button {
+    // Dropdown wrappers retain their intrinsic height. Direct buttons in this
+    // flex group otherwise stretch to the toolbar height.
+    align-self: flex-start;
+  }
+
   & > .dropdown:not(:last-child) .btn {
     border-bottom-right-radius: 0;
     border-top-right-radius: 0;

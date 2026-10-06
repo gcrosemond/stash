@@ -858,6 +858,25 @@ func (g *sceneGenerators) Generate(ctx context.Context, s *models.Scene, f *mode
 		}
 	}
 
+	if t.ScanGenerateAudioWaveforms {
+		progress.AddTotal(1)
+		waveformFn := func(ctx context.Context) {
+			taskWaveform := GenerateAudioWaveformTask{
+				Scene:               *s,
+				Overwrite:           overwrite,
+				fileNamingAlgorithm: g.fileNamingAlgorithm,
+			}
+			taskWaveform.Start(ctx)
+			progress.Increment()
+		}
+
+		if g.sequentialScanning {
+			waveformFn(ctx)
+		} else {
+			g.taskQueue.Add(fmt.Sprintf("Generating audio waveform for %s", path), waveformFn)
+		}
+	}
+
 	if t.ScanGeneratePreviews {
 		progress.AddTotal(1)
 		previewsFn := func(ctx context.Context) {

@@ -32,3 +32,18 @@ func TestConfig_GetAllPluginConfiguration(t *testing.T) {
 		"plugin2": {"key3": "value3"},
 	}, i.GetAllPluginConfiguration())
 }
+
+func TestConfig_GetMenuItemsAddsMoviesToLegacyDefault(t *testing.T) {
+	i := InitializeEmpty()
+	i.SetInterface(MenuItems, legacyDefaultMenuItems)
+
+	assert.Equal(t, defaultMenuItems, i.GetMenuItems())
+}
+
+func TestConfig_GetMenuItemsPreservesCustomMenu(t *testing.T) {
+	i := InitializeEmpty()
+	customMenu := []string{"scenes", "images", "performers"}
+	i.SetInterface(MenuItems, customMenu)
+
+	assert.Equal(t, customMenu, i.GetMenuItems())
+}

@@ -24,9 +24,32 @@ const (
 	minSegmentDuration = 0.75
 )
 
+// AudioWaveform generates a compact overview image for timeline editing.
+func (g Generator) AudioWaveform(ctx context.Context, input string, hash string) error {
+	lockCtx := g.LockManager.ReadLock(ctx, input)
+	defer lockCtx.Cancel()
+
+	output := g.ScenePaths.GetAudioWaveformPath(hash)
+	if !g.Overwrite {
+		if exists, _ := fsutil.FileExists(output); exists {
+			return nil
+		}
+	}
+
+	return g.generateFile(lockCtx, g.ScenePaths, "*.png", output, func(lockCtx *fsutil.LockContext, tmpFn string) error {
+		return g.generate(lockCtx, []string{
+			"-i", input,
+			"-filter_complex", "aformat=channel_layouts=mono,showwavespic=s=4096x96:colors=white:filter=peak:scale=lin:draw=full",
+			"-frames:v", "1",
+			"-y", tmpFn,
+		})
+	})
+}
+
 type PreviewOptions struct {
 	Segments        int
 	SegmentDuration float64
+	StartTime       float64
 	ExcludeStart    string
 	ExcludeEnd      string
 
@@ -104,6 +127,7 @@ func (g *Generator) previewVideo(input string, videoDuration float64, options Pr
 		defer func() { removeFiles(tmpFiles) }()
 
 		stepSize, offset := options.getStepSizeAndOffset(videoDuration)
+		offset += options.StartTime
 
 		segmentDuration := options.SegmentDuration
 		// TODO - move this out into calling function
@@ -153,7 +177,7 @@ func (g *Generator) previewVideo(input string, videoDuration float64, options Pr
 func (g *Generator) previewVideoSingle(input string, videoDuration float64, options PreviewOptions, fallback bool, useVsync2 bool) generateFn {
 	return func(lockCtx *fsutil.LockContext, tmpFn string) error {
 		chunkOptions := previewChunkOptions{
-			StartTime:  0,
+			StartTime:  options.StartTime,
 			Duration:   videoDuration,
 			OutputPath: tmpFn,
 			Audio:      options.Audio,

@@ -69,6 +69,11 @@ const typePolicies: TypePolicies = {
       },
     },
   },
+  // A virtual scene exposes the source file with a range-specific duration.
+  // Do not normalize these context-dependent file projections by their shared ID.
+  VideoFile: {
+    keyFields: false,
+  },
   Image: {
     fields: {
       studio: {

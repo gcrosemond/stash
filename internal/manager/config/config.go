@@ -327,7 +327,8 @@ var (
 	defaultVideoExtensions   = []string{"m4v", "mp4", "mov", "wmv", "avi", "mpg", "mpeg", "rmvb", "rm", "flv", "asf", "mkv", "webm", "f4v"}
 	defaultImageExtensions   = []string{"png", "jpg", "jpeg", "gif", "webp", "avif", "jxl"}
 	defaultGalleryExtensions = []string{"zip", "cbz"}
-	defaultMenuItems         = []string{"scenes", "images", "groups", "markers", "galleries", "performers", "studios", "tags"}
+	defaultMenuItems         = []string{"scenes", "movie_scenes", "images", "groups", "markers", "galleries", "performers", "studios", "tags"}
+	legacyDefaultMenuItems   = []string{"scenes", "images", "groups", "markers", "galleries", "performers", "studios", "tags"}
 )
 
 type MissingConfigError struct {
@@ -1326,9 +1327,33 @@ func (i *Config) GetMenuItems() []string {
 	defer i.RUnlock()
 	v := i.forKey(MenuItems)
 	if v.Exists(MenuItems) {
-		return v.Strings(MenuItems)
+		return addMoviesToLegacyDefaultMenu(v.Strings(MenuItems))
 	}
 	return defaultMenuItems
+}
+
+// addMoviesToLegacyDefaultMenu keeps existing custom menu selections intact
+// while exposing Movies for installations that persisted the former default.
+func addMoviesToLegacyDefaultMenu(items []string) []string {
+	if len(items) != len(legacyDefaultMenuItems) {
+		return items
+	}
+
+	for index, item := range items {
+		if item != legacyDefaultMenuItems[index] {
+			return items
+		}
+	}
+
+	updated := make([]string, 0, len(items)+1)
+	for _, item := range items {
+		updated = append(updated, item)
+		if item == "scenes" {
+			updated = append(updated, "movie_scenes")
+		}
+	}
+
+	return updated
 }
 
 func (i *Config) GetSoundOnPreview() bool {

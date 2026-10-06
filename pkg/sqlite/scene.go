@@ -50,6 +50,11 @@ const sceneAgeDateExpr = "COALESCE(NULLIF(scenes.production_date, ''), scenes.da
 
 type sceneRow struct {
 	ID                      int         `db:"id" goqu:"skipinsert"`
+	Type                    string      `db:"type"`
+	SourceSceneID           null.Int    `db:"source_scene_id,omitempty"`
+	StartSeconds            null.Float  `db:"start_seconds,omitempty"`
+	EndSeconds              null.Float  `db:"end_seconds,omitempty"`
+	CoverSeconds            null.Float  `db:"cover_seconds,omitempty"`
 	Title                   zero.String `db:"title"`
 	Code                    zero.String `db:"code"`
 	Details                 zero.String `db:"details"`
@@ -73,6 +78,14 @@ type sceneRow struct {
 
 func (r *sceneRow) fromScene(o models.Scene) {
 	r.ID = o.ID
+	r.Type = string(o.Type)
+	if r.Type == "" {
+		r.Type = string(models.SceneTypeNormal)
+	}
+	r.SourceSceneID = intFromPtr(o.SourceSceneID)
+	r.StartSeconds = null.FloatFromPtr(o.StartSeconds)
+	r.EndSeconds = null.FloatFromPtr(o.EndSeconds)
+	r.CoverSeconds = null.FloatFromPtr(o.CoverSeconds)
 	r.Title = zero.StringFrom(o.Title)
 	r.Code = zero.StringFrom(o.Code)
 	r.Details = zero.StringFrom(o.Details)
@@ -102,6 +115,11 @@ type sceneQueryRow struct {
 func (r *sceneQueryRow) resolve() *models.Scene {
 	ret := &models.Scene{
 		ID:             r.ID,
+		Type:           models.SceneType(r.Type),
+		SourceSceneID:  nullIntPtr(r.SourceSceneID),
+		StartSeconds:   nullFloatPtr(r.StartSeconds),
+		EndSeconds:     nullFloatPtr(r.EndSeconds),
+		CoverSeconds:   nullFloatPtr(r.CoverSeconds),
 		Title:          r.Title.String,
 		Code:           r.Code.String,
 		Details:        r.Details.String,
@@ -135,6 +153,11 @@ type sceneRowRecord struct {
 }
 
 func (r *sceneRowRecord) fromPartial(o models.ScenePartial) {
+	r.setString("type", o.Type)
+	r.setNullInt("source_scene_id", o.SourceSceneID)
+	r.setNullFloat64("start_seconds", o.StartSeconds)
+	r.setNullFloat64("end_seconds", o.EndSeconds)
+	r.setNullFloat64("cover_seconds", o.CoverSeconds)
 	r.setNullString("title", o.Title)
 	r.setNullString("code", o.Code)
 	r.setNullString("details", o.Details)
@@ -612,6 +635,24 @@ func (qb *SceneStore) GetFiles(ctx context.Context, id int) ([]*models.VideoFile
 	return ret, nil
 }
 
+func (qb *SceneStore) GetFingerprint(ctx context.Context, sceneID int, fingerprintType string) (*models.Fingerprint, error) {
+	var row struct {
+		Fingerprint interface{} `db:"fingerprint"`
+	}
+	if err := dbWrapper.Get(ctx, &row, `SELECT fingerprint FROM scenes_fingerprints WHERE scene_id = ? AND type = ?`, sceneID, fingerprintType); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &models.Fingerprint{Type: fingerprintType, Fingerprint: row.Fingerprint}, nil
+}
+
+func (qb *SceneStore) UpdateFingerprint(ctx context.Context, sceneID int, fingerprint models.Fingerprint) error {
+	_, err := dbWrapper.Exec(ctx, `INSERT INTO scenes_fingerprints (scene_id, type, fingerprint) VALUES (?, ?, ?) ON CONFLICT(scene_id, type) DO UPDATE SET fingerprint = excluded.fingerprint`, sceneID, fingerprint.Type, fingerprint.Fingerprint)
+	return err
+}
+
 func (qb *SceneStore) GetManyFileIDs(ctx context.Context, ids []int) ([][]models.FileID, error) {
 	const primaryOnly = false
 	return sceneRepository.files.getMany(ctx, ids, primaryOnly)
@@ -905,6 +946,11 @@ func (qb *SceneStore) FindByGroupID(ctx context.Context, groupID int) ([]*models
 	}
 
 	return ret, nil
+}
+
+func (qb *SceneStore) FindBySourceSceneID(ctx context.Context, sourceSceneID int) ([]*models.Scene, error) {
+	table := qb.table()
+	return qb.getMany(ctx, qb.selectDataset().Where(table.Col("source_scene_id").Eq(sourceSceneID)).Order(table.Col("start_seconds").Asc(), table.Col("id").Asc()))
 }
 
 func (qb *SceneStore) Count(ctx context.Context) (int, error) {
@@ -1508,7 +1554,15 @@ func (qb *SceneStore) FindDuplicates(ctx context.Context, distance int, duration
 		},
 		join{
 			table:    fingerprintTable,
-			onClause: "scenes_files.file_id = files_fingerprints.file_id AND files_fingerprints.type = 'phash'",
+			as:       "file_phashes",
+			joinType: joinTypeLeft,
+			onClause: "scenes.type != 'VIRTUAL' AND scenes_files.file_id = file_phashes.file_id AND file_phashes.type = 'phash'",
+		},
+		join{
+			table:    "scenes_fingerprints",
+			as:       "scene_phashes",
+			joinType: joinTypeLeft,
+			onClause: "scenes.type = 'VIRTUAL' AND scenes.id = scene_phashes.scene_id AND scene_phashes.type = 'phash'",
 		},
 		join{
 			table:    videoFileTable,
@@ -1519,10 +1573,10 @@ func (qb *SceneStore) FindDuplicates(ctx context.Context, distance int, duration
 	if distance == 0 {
 		query.columns = []string{
 			"scenes.id as scene_id",
-			"video_files.duration as file_duration",
+			"CASE WHEN scenes.type = 'VIRTUAL' THEN scenes.end_seconds - scenes.start_seconds ELSE video_files.duration END as file_duration",
 			"files.size as file_size",
-			"files_fingerprints.fingerprint as phash",
-			"abs(max(video_files.duration) OVER (PARTITION by files_fingerprints.fingerprint) - video_files.duration) as durationDiff",
+			"COALESCE(scene_phashes.fingerprint, file_phashes.fingerprint) as phash",
+			"abs(max(CASE WHEN scenes.type = 'VIRTUAL' THEN scenes.end_seconds - scenes.start_seconds ELSE video_files.duration END) OVER (PARTITION by COALESCE(scene_phashes.fingerprint, file_phashes.fingerprint)) - CASE WHEN scenes.type = 'VIRTUAL' THEN scenes.end_seconds - scenes.start_seconds ELSE video_files.duration END) as durationDiff",
 		}
 
 		sqlStr := query.toSQL(false)
@@ -1562,10 +1616,10 @@ ORDER BY SUM(file_size) DESC;
 	} else {
 		query.columns = []string{
 			"scenes.id as id",
-			"files_fingerprints.fingerprint as phash",
-			"video_files.duration as duration",
+			"COALESCE(scene_phashes.fingerprint, file_phashes.fingerprint) as phash",
+			"CASE WHEN scenes.type = 'VIRTUAL' THEN scenes.end_seconds - scenes.start_seconds ELSE video_files.duration END as duration",
 		}
-		query.addWhere("files_fingerprints.fingerprint IS NOT NULL")
+		query.addWhere("COALESCE(scene_phashes.fingerprint, file_phashes.fingerprint) IS NOT NULL")
 		query.sortAndPagination = " ORDER BY files.size DESC"
 
 		sqlStr := query.toSQL(true)

@@ -84,3 +84,7 @@ func (b SceneURLBuilder) GetCaptionURL() string {
 func (b SceneURLBuilder) GetInteractiveHeatmapURL() string {
 	return b.BaseURL + "/scene/" + b.SceneID + "/interactive_heatmap"
 }
+
+func (b SceneURLBuilder) GetAudioWaveformURL() string {
+	return b.BaseURL + "/scene/" + b.SceneID + "/audio_waveform"
+}

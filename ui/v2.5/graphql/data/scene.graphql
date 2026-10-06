@@ -1,5 +1,19 @@
 fragment SceneData on Scene {
   id
+  type
+  source_scene_id
+  source_scene {
+    id
+    title
+  }
+  ignored_ranges {
+    id
+    start_seconds
+    end_seconds
+  }
+  start_seconds
+  end_seconds
+  cover_seconds
   title
   code
   details
@@ -39,6 +53,7 @@ fragment SceneData on Scene {
     sprite
     funscript
     interactive_heatmap
+    audio_waveform
     caption
   }
 
@@ -86,6 +101,11 @@ fragment SceneData on Scene {
 
 fragment SelectSceneData on Scene {
   id
+  type
+  source_scene_id
+  start_seconds
+  end_seconds
+  cover_seconds
   title
   date
   production_date

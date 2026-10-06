@@ -13,6 +13,8 @@ input GenerateMetadataInput {
   "Generate video phashes during scan"
   phashes: Boolean
   interactiveHeatmapsSpeeds: Boolean
+  "Generate audio waveforms for video scenes"
+  audioWaveforms: Boolean
   "Generate image phashes during scan"
   imagePhashes: Boolean
   imageThumbnails: Boolean
@@ -58,6 +60,7 @@ type GenerateMetadataOptions {
   transcodes: Boolean
   phashes: Boolean
   interactiveHeatmapsSpeeds: Boolean
+  audioWaveforms: Boolean
   imageThumbnails: Boolean
   clipPreviews: Boolean
 }
@@ -96,6 +99,8 @@ input ScanMetadataInput {
   scanGenerateSprites: Boolean
   "Generate video phashes during scan"
   scanGeneratePhashes: Boolean
+  "Generate audio waveforms during scan"
+  scanGenerateAudioWaveforms: Boolean
   "Generate image phashes during scan"
   scanGenerateImagePhashes: Boolean
   "Generate image thumbnails during scan"
@@ -120,6 +125,8 @@ type ScanMetadataOptions {
   scanGenerateSprites: Boolean!
   "Generate video phashes during scan"
   scanGeneratePhashes: Boolean!
+  "Generate audio waveforms during scan"
+  scanGenerateAudioWaveforms: Boolean!
   "Generate image phashes during scan"
   scanGenerateImagePhashes: Boolean
   "Generate image thumbnails during scan"
@@ -152,6 +159,8 @@ input CleanGeneratedInput {
   screenshots: Boolean
   "Clean scene transcodes without scene entries"
   transcodes: Boolean
+  "Clean audio waveform files without a matching movie"
+  audioWaveforms: Boolean
 
   "Clean marker files without marker entries"
   markers: Boolean

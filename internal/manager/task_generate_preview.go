@@ -30,7 +30,7 @@ func (t *GeneratePreviewTask) GetDescription() string {
 }
 
 func (t *GeneratePreviewTask) Start(ctx context.Context) {
-	videoChecksum := t.Scene.GetHash(t.fileNamingAlgorithm)
+	videoChecksum := t.Scene.GetGeneratedHash(t.fileNamingAlgorithm)
 
 	if t.videoPreviewRequired() {
 		ffprobe := instance.FFProbe
@@ -40,7 +40,12 @@ func (t *GeneratePreviewTask) Start(ctx context.Context) {
 			return
 		}
 
-		if err := t.generateVideo(videoChecksum, videoFile.VideoStreamDuration, videoFile.FrameRate); err != nil {
+		videoDuration := videoFile.VideoStreamDuration
+		if t.Scene.Type == models.SceneTypeVirtual && t.Scene.StartSeconds != nil && t.Scene.EndSeconds != nil {
+			videoDuration = *t.Scene.EndSeconds - *t.Scene.StartSeconds
+			t.Options.StartTime = *t.Scene.StartSeconds
+		}
+		if err := t.generateVideo(videoChecksum, videoDuration, videoFile.FrameRate); err != nil {
 			logger.Errorf("error generating preview: %v", err)
 			logErrorOutput(err)
 			return
@@ -92,7 +97,7 @@ func (t *GeneratePreviewTask) videoPreviewRequired() bool {
 		return true
 	}
 
-	sceneChecksum := t.Scene.GetHash(t.fileNamingAlgorithm)
+	sceneChecksum := t.Scene.GetGeneratedHash(t.fileNamingAlgorithm)
 	if sceneChecksum == "" {
 		return false
 	}
@@ -118,7 +123,7 @@ func (t *GeneratePreviewTask) imagePreviewRequired() bool {
 		return true
 	}
 
-	sceneChecksum := t.Scene.GetHash(t.fileNamingAlgorithm)
+	sceneChecksum := t.Scene.GetGeneratedHash(t.fileNamingAlgorithm)
 	if sceneChecksum == "" {
 		return false
 	}

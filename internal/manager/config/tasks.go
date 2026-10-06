@@ -13,6 +13,8 @@ type ScanMetadataOptions struct {
 	ScanGenerateSprites bool `json:"scanGenerateSprites"`
 	// Generate video phashes during scan
 	ScanGeneratePhashes bool `json:"scanGeneratePhashes"`
+	// Generate audio waveforms during scan
+	ScanGenerateAudioWaveforms bool `json:"scanGenerateAudioWaveforms"`
 	// Generate image phashes during scan
 	ScanGenerateImagePhashes bool `json:"scanGenerateImagePhashes"`
 	// Generate image thumbnails during scan

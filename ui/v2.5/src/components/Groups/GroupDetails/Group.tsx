@@ -45,8 +45,16 @@ import { GroupPerformersPanel } from "./GroupPerformersPanel";
 import { Icon } from "src/components/Shared/Icon";
 import { goBackOrReplace } from "src/utils/history";
 import { PatchComponent } from "src/patch";
+import { RelatedSceneTabTitle } from "src/components/Scenes/RelatedSceneTabTitle";
+import { useGroupFilterHook } from "./GroupScenesPanel";
 
-const validTabs = ["default", "scenes", "performers", "subgroups"] as const;
+const validTabs = [
+  "default",
+  "scenes",
+  "movies",
+  "performers",
+  "subgroups",
+] as const;
 type TabKey = (typeof validTabs)[number];
 
 function isTabKey(tab: string): tab is TabKey {
@@ -63,6 +71,7 @@ const GroupTabs: React.FC<{
     performer_count: performerCount,
     sub_group_count: groupCount,
   } = group;
+  const groupFilterHook = useGroupFilterHook(group);
 
   const populatedDefaultTab = useMemo(() => {
     if (sceneCount === 0) {
@@ -94,14 +103,29 @@ const GroupTabs: React.FC<{
       <Tab
         eventKey="scenes"
         title={
-          <TabTitleCounter
-            messageID="scenes"
-            count={sceneCount}
+          <RelatedSceneTabTitle
+            filterHook={groupFilterHook}
             abbreviateCounter={abbreviateCounter}
           />
         }
       >
         <GroupScenesPanel active={activeTabKey === "scenes"} group={group} />
+      </Tab>
+      <Tab
+        eventKey="movies"
+        title={
+          <RelatedSceneTabTitle
+            filterHook={groupFilterHook}
+            movies
+            abbreviateCounter={abbreviateCounter}
+          />
+        }
+      >
+        <GroupScenesPanel
+          active={activeTabKey === "movies"}
+          group={group}
+          movies
+        />
       </Tab>
       <Tab
         eventKey="performers"

@@ -10,6 +10,66 @@ mutation SceneUpdate($input: SceneUpdateInput!) {
   }
 }
 
+mutation SceneConvertToMovie($id: ID!) {
+  sceneConvertToMovie(id: $id) {
+    id
+    type
+  }
+}
+
+mutation ScenesConvertToMovie($ids: [ID!]!) {
+  scenesConvertToMovie(ids: $ids) {
+    id
+    type
+  }
+}
+
+mutation SceneConvertFromMovie($id: ID!, $deleteVirtualScenes: Boolean) {
+  sceneConvertFromMovie(
+    id: $id
+    delete_virtual_scenes: $deleteVirtualScenes
+  ) {
+    id
+    type
+  }
+}
+
+mutation VirtualSceneCreate($input: VirtualSceneCreateInput!) {
+  virtualSceneCreate(input: $input) {
+    ...VirtualSceneData
+  }
+}
+
+mutation VirtualSceneUpdate($input: VirtualSceneUpdateInput!) {
+  virtualSceneUpdate(input: $input) {
+    ...VirtualSceneData
+  }
+}
+
+mutation VirtualSceneDestroy($id: ID!) {
+  virtualSceneDestroy(id: $id)
+}
+
+mutation SceneIgnoredRangeCreate($input: SceneIgnoredRangeCreateInput!) {
+  sceneIgnoredRangeCreate(input: $input) {
+    id
+    start_seconds
+    end_seconds
+  }
+}
+
+mutation SceneIgnoredRangeUpdate($input: SceneIgnoredRangeUpdateInput!) {
+  sceneIgnoredRangeUpdate(input: $input) {
+    id
+    start_seconds
+    end_seconds
+  }
+}
+
+mutation SceneIgnoredRangeDestroy($id: ID!) {
+  sceneIgnoredRangeDestroy(id: $id)
+}
+
 mutation BulkSceneUpdate($input: BulkSceneUpdateInput!) {
   bulkSceneUpdate(input: $input) {
     ...SceneData
@@ -112,6 +172,10 @@ mutation ScenesDestroy(
 
 mutation SceneGenerateScreenshot($id: ID!, $at: Float) {
   sceneGenerateScreenshot(id: $id, at: $at)
+}
+
+mutation SceneGenerateAudioWaveform($id: ID!, $overwrite: Boolean) {
+  sceneGenerateAudioWaveform(id: $id, overwrite: $overwrite)
 }
 
 mutation SceneAssignFile($input: AssignSceneFileInput!) {

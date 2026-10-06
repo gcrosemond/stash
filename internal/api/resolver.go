@@ -111,6 +111,9 @@ func (r *Resolver) Plugin() PluginResolver {
 func (r *Resolver) ConfigResult() ConfigResultResolver {
 	return &configResultResolver{r}
 }
+func (r *Resolver) GenerateMetadataOptions() GenerateMetadataOptionsResolver {
+	return &generateMetadataOptionsResolver{r}
+}
 
 type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }

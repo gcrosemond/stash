@@ -7,14 +7,16 @@ import {
 import { ListFilterModel } from "src/models/list-filter/filter";
 import { FilteredSceneList } from "src/components/Scenes/SceneList";
 import { View } from "src/components/List/views";
+import { movieFilter, normalSceneFilter } from "src/components/Scenes/sceneTypeFilters";
 
 interface IGroupScenesPanel {
   active: boolean;
   group: GQL.GroupDataFragment;
   showSubGroupContent?: boolean;
+  movies?: boolean;
 }
 
-function useFilterHook(
+export function useGroupFilterHook(
   group: Pick<GQL.GroupDataFragment, "id" | "name">,
   showSubGroupContent?: boolean
 ) {
@@ -59,8 +61,11 @@ export const GroupScenesPanel: React.FC<IGroupScenesPanel> = ({
   active,
   group,
   showSubGroupContent,
+  movies,
 }) => {
-  const filterHook = useFilterHook(group, showSubGroupContent);
+  const groupFilterHook = useGroupFilterHook(group, showSubGroupContent);
+  const filterHook = (filter: ListFilterModel) =>
+    (movies ? movieFilter : normalSceneFilter)(groupFilterHook(filter));
 
   if (group?.id) {
     return (
@@ -68,7 +73,7 @@ export const GroupScenesPanel: React.FC<IGroupScenesPanel> = ({
         filterHook={filterHook}
         defaultSort="group_scene_number"
         alterQuery={active}
-        view={View.GroupScenes}
+        view={movies ? View.GroupMovies : View.GroupScenes}
         fromGroupId={group.id}
       />
     );

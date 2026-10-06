@@ -95,6 +95,7 @@ export const LibraryTasks: React.FC = () => {
       scanGenerateImagePreviews: false,
       scanGenerateSprites: false,
       scanGeneratePhashes: false,
+      scanGenerateAudioWaveforms: false,
       scanGenerateThumbnails: false,
       scanGenerateClipPreviews: false,
     };

@@ -26,6 +26,11 @@ type SpriteGenerator struct {
 
 	Overwrite bool
 
+	// StartTime and StartFrame offset sprite extraction into a virtual scene's
+	// source movie while keeping generated VTT timestamps relative to the scene.
+	StartTime  float64
+	StartFrame int64
+
 	g *generate.Generator
 }
 
@@ -208,7 +213,7 @@ func (g *SpriteGenerator) generateSpriteImage() error {
 		stepSize := g.Info.VideoFile.VideoStreamDuration / float64(g.Info.ChunkCount)
 
 		for i := 0; i < g.Info.ChunkCount; i++ {
-			time := float64(i) * stepSize
+			time := g.StartTime + float64(i)*stepSize
 			img, err := g.g.SpriteScreenshot(context.TODO(), g.Info.VideoFile.Path, time, g.Config.SpriteSize, isPortrait)
 			if err != nil {
 				return err
@@ -222,7 +227,7 @@ func (g *SpriteGenerator) generateSpriteImage() error {
 
 		for i := 0; i < g.Info.ChunkCount; i++ {
 			// generate exactly `ChunkCount` thumbnails, using duplicate frames if needed
-			frame := math.Round(float64(i) * stepFrame)
+			frame := g.StartFrame + int64(math.Round(float64(i)*stepFrame))
 			if frame >= math.MaxInt || frame <= math.MinInt {
 				return errors.New("invalid frame number conversion")
 			}
@@ -249,15 +254,10 @@ func (g *SpriteGenerator) generateSpriteVTT() error {
 	}
 	logger.Infof("[generator] generating sprite vtt for %s", g.Info.VideoFile.Path)
 
-	var stepSize float64
-	if !g.SlowSeek {
-		stepSize = float64(g.Info.NthFrame) / g.Info.FrameRate
-	} else {
-		// for files with a low framecount (<ChunkCount) g.Info.NthFrame can be zero
-		// so recalculate from scratch
-		stepSize = float64(g.Info.VideoFile.FrameCount-1) / float64(g.Info.ChunkCount)
-		stepSize /= g.Info.FrameRate
-	}
+	// VTT cue times must match the sampling interval used for the sprite image.
+	// NthFrame is based on the original source file and is therefore incorrect
+	// for a virtual scene whose effective duration is only a source-file range.
+	stepSize := g.Info.VideoFile.VideoStreamDuration / float64(g.Info.ChunkCount)
 
 	return g.g.SpriteVTT(context.TODO(), g.VTTOutputPath, g.ImageOutputPath, stepSize, g.Info.ChunkCount)
 }

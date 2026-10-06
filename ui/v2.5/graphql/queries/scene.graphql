@@ -48,6 +48,20 @@ query FindFullScenes($ids: [Int!]) {
   }
 }
 
+query FindVirtualScenes($source_movie_ids: [ID!]) {
+  findScenes(
+    scene_filter: {
+      type: VIRTUAL
+      source_movies: { value: $source_movie_ids, modifier: INCLUDES }
+    }
+    filter: { per_page: -1 }
+  ) {
+    scenes {
+      ...VirtualSceneData
+    }
+  }
+}
+
 query FindSceneMarkerTags($id: ID!) {
   sceneMarkerTags(scene_id: $id) {
     tag {

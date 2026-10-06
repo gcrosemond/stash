@@ -44,6 +44,12 @@ const CleanGeneratedOptions: React.FC<{
         onChange={(v) => setOptions({ transcodes: v })}
       />
       <BooleanSetting
+        id="clean-generated-audio-waveforms"
+        checked={options.audioWaveforms ?? false}
+        heading="Audio waveforms"
+        onChange={(v) => setOptions({ audioWaveforms: v })}
+      />
+      <BooleanSetting
         id="clean-generated-markers"
         checked={options.markers ?? false}
         headingID="config.tasks.clean_generated.markers"
@@ -80,6 +86,7 @@ export const CleanGeneratedDialog: React.FC<{
     screenshots: true,
     sprites: true,
     transcodes: true,
+    audioWaveforms: true,
     dryRun: false,
   });
 

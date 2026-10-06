@@ -23,7 +23,7 @@ type FileDeleter struct {
 // MarkGeneratedFiles marks for deletion the generated files for the provided scene.
 // Generated files bypass trash and are permanently deleted since they can be regenerated.
 func (d *FileDeleter) MarkGeneratedFiles(scene *models.Scene) error {
-	sceneHash := scene.GetHash(d.FileNamingAlgo)
+	sceneHash := scene.GetGeneratedHash(d.FileNamingAlgo)
 
 	if sceneHash == "" {
 		return nil
@@ -76,6 +76,12 @@ func (d *FileDeleter) MarkGeneratedFiles(scene *models.Scene) error {
 		files = append(files, heatmapPath)
 	}
 
+	waveformPath := d.Paths.Scene.GetAudioWaveformPath(sceneHash)
+	exists, _ = fsutil.FileExists(waveformPath)
+	if exists {
+		files = append(files, waveformPath)
+	}
+
 	return d.FilesWithoutTrash(files)
 }
 
@@ -110,6 +116,28 @@ func (d *FileDeleter) MarkMarkerFiles(scene *models.Scene, seconds int) error {
 // Destroy deletes a scene and its associated relationships from the
 // database.
 func (s *Service) Destroy(ctx context.Context, scene *models.Scene, fileDeleter *FileDeleter, deleteGenerated, deleteFile, destroyFileEntry bool) error {
+	if scene.Type == models.SceneTypeVirtual {
+		// Virtual scenes share the source movie's physical file, but have their
+		// own generated namespace.
+		deleteFile = false
+		destroyFileEntry = false
+	}
+
+	if scene.Type == models.SceneTypeMovie {
+		virtualScenes, err := s.Repository.FindBySourceSceneID(ctx, scene.ID)
+		if err != nil {
+			return err
+		}
+
+		for _, virtualScene := range virtualScenes {
+			// Virtual scenes share the movie's physical file. They must never
+			// delete or detach it during cascading destruction.
+			if err := s.Destroy(ctx, virtualScene, fileDeleter, deleteGenerated, false, false); err != nil {
+				return err
+			}
+		}
+	}
+
 	mqb := s.MarkerRepository
 	markers, err := mqb.FindBySceneID(ctx, scene.ID)
 	if err != nil {

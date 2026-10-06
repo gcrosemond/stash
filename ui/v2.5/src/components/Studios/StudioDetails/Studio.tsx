@@ -51,6 +51,8 @@ import { goBackOrReplace } from "src/utils/history";
 import { PatchComponent } from "src/patch";
 import { OCounterButton } from "src/components/Shared/CountButton";
 import { OrganizedButton } from "src/components/Scenes/SceneDetails/OrganizedButton";
+import { RelatedSceneTabTitle } from "src/components/Scenes/RelatedSceneTabTitle";
+import { useStudioFilterHook } from "src/core/studios";
 
 interface IProps {
   studio: GQL.StudioDataFragment;
@@ -65,6 +67,7 @@ interface IStudioParams {
 const validTabs = [
   "default",
   "scenes",
+  "movies",
   "galleries",
   "images",
   "performers",
@@ -89,6 +92,7 @@ const StudioTabs: React.FC<{
 
   const sceneCount =
     (showAllDetails ? studio.scene_count_all : studio.scene_count) ?? 0;
+  const studioFilterHook = useStudioFilterHook(studio, showAllDetails);
   const galleryCount =
     (showAllDetails ? studio.gallery_count_all : studio.gallery_count) ?? 0;
   const imageCount =
@@ -160,9 +164,8 @@ const StudioTabs: React.FC<{
       <Tab
         eventKey="scenes"
         title={
-          <TabTitleCounter
-            messageID="scenes"
-            count={sceneCount}
+          <RelatedSceneTabTitle
+            filterHook={studioFilterHook}
             abbreviateCounter={abbreviateCounter}
           />
         }
@@ -172,6 +175,24 @@ const StudioTabs: React.FC<{
           active={activeTabKey === "scenes"}
           studio={studio}
           showChildStudioContent={showAllDetails}
+        />
+      </Tab>
+      <Tab
+        eventKey="movies"
+        title={
+          <RelatedSceneTabTitle
+            filterHook={studioFilterHook}
+            movies
+            abbreviateCounter={abbreviateCounter}
+          />
+        }
+      >
+        {contentSwitch}
+        <StudioScenesPanel
+          active={activeTabKey === "movies"}
+          studio={studio}
+          showChildStudioContent={showAllDetails}
+          movies
         />
       </Tab>
       <Tab

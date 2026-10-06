@@ -224,7 +224,10 @@ interface IScenePlayerProps {
   autoplay?: boolean;
   permitLoop?: boolean;
   initialTimestamp: number;
-  sendSetTimestamp: (setTimestamp: (value: number) => void) => void;
+  sendSetTimestamp: (
+    setTimestamp: (value: number, end?: number) => void
+  ) => void;
+  onTimeUpdate?: (value: number) => void;
   onComplete: () => void;
   onNext: () => void;
   onPrevious: () => void;
@@ -239,6 +242,7 @@ export const ScenePlayer: React.FC<IScenePlayerProps> = PatchComponent(
     permitLoop = true,
     initialTimestamp: _initialTimestamp,
     sendSetTimestamp,
+    onTimeUpdate,
     onComplete,
     onNext,
     onPrevious,
@@ -269,6 +273,7 @@ export const ScenePlayer: React.FC<IScenePlayerProps> = PatchComponent(
 
     const started = useRef(false);
     const auto = useRef(false);
+    const previewEnd = useRef<number>();
     // durable autostart intent: unlike `auto`, this is not consumed by the
     // one-shot play effect, so it survives source failover (e.g. transcode fallback)
     const autostartIntent = useRef(false);
@@ -321,9 +326,11 @@ export const ScenePlayer: React.FC<IScenePlayerProps> = PatchComponent(
     }, [hideScrubberOverride, fullscreen]);
 
     useEffect(() => {
-      sendSetTimestamp((value: number) => {
+      sendSetTimestamp((value: number, end?: number) => {
         const player = getPlayer();
         if (player && value >= 0) {
+          previewEnd.current =
+            end != null && Number.isFinite(end) && end > value ? end : undefined;
           if (player.hasStarted() && player.paused()) {
             player.currentTime(value);
           } else {
@@ -334,6 +341,23 @@ export const ScenePlayer: React.FC<IScenePlayerProps> = PatchComponent(
         }
       });
     }, [sendSetTimestamp, getPlayer]);
+
+    useEffect(() => {
+      const player = getPlayer();
+      if (!player) return;
+
+      const stopPreview = () => {
+        const end = previewEnd.current;
+        if (end == null || player.currentTime() < end) return;
+
+        player.pause();
+        player.currentTime(end);
+        previewEnd.current = undefined;
+      };
+
+      player.on("timeupdate", stopPreview);
+      return () => player.off("timeupdate", stopPreview);
+    }, [getPlayer]);
 
     // Initialize VideoJS player
     useEffect(() => {
@@ -565,8 +589,9 @@ export const ScenePlayer: React.FC<IScenePlayerProps> = PatchComponent(
       }
 
       function timeupdate(this: VideoJsPlayer) {
-        if (this.paused()) return;
-        setTime(this.currentTime());
+        const currentTime = this.currentTime();
+        onTimeUpdate?.(currentTime);
+        if (!this.paused()) setTime(currentTime);
       }
 
       player.on("playing", playing);
@@ -579,7 +604,7 @@ export const ScenePlayer: React.FC<IScenePlayerProps> = PatchComponent(
         player.off("timeupdate", timeupdate);
         clearTimeout(playingTimer.current);
       };
-    }, [getPlayer, interactiveClient, scene]);
+    }, [getPlayer, interactiveClient, onTimeUpdate, scene]);
 
     useEffect(() => {
       const player = getPlayer();
@@ -625,7 +650,14 @@ export const ScenePlayer: React.FC<IScenePlayerProps> = PatchComponent(
         );
       }
 
-      const { duration } = file;
+      const duration =
+        scene.type === GQL.SceneType.Virtual &&
+        scene.start_seconds !== null &&
+        scene.start_seconds !== undefined &&
+        scene.end_seconds !== null &&
+        scene.end_seconds !== undefined
+          ? scene.end_seconds - scene.start_seconds
+          : file.duration;
       const sourceSelector = player.sourceSelector();
       sourceSelector.setSources(
         scene.sceneStreams

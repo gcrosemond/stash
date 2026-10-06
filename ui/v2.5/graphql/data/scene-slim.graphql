@@ -1,5 +1,14 @@
 fragment SlimSceneData on Scene {
   id
+  type
+  source_scene_id
+  source_scene {
+    id
+    title
+  }
+  start_seconds
+  end_seconds
+  cover_seconds
   title
   code
   details

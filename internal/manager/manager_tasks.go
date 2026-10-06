@@ -246,6 +246,19 @@ func (s *Manager) GenerateScreenshot(ctx context.Context, sceneId string, at flo
 	return s.generateScreenshot(ctx, sceneId, &at)
 }
 
+func (s *Manager) GenerateVirtualScenePhash(ctx context.Context, sceneID int, overwrite bool) int {
+	return s.RunSingleTask(ctx, &GenerateVirtualPhashTask{
+		repository: s.Repository,
+		SceneID:    sceneID,
+		Overwrite:  overwrite,
+	})
+}
+
+func (s *Manager) GenerateVirtualSceneAssets(ctx context.Context, sceneID int, overwrite bool) {
+	s.GenerateDefaultScreenshot(ctx, strconv.Itoa(sceneID))
+	s.GenerateVirtualScenePhash(ctx, sceneID, overwrite)
+}
+
 // generate default screenshot if at is nil
 func (s *Manager) generateScreenshot(ctx context.Context, sceneId string, at *float64) int {
 	if err := instance.Paths.Generated.EnsureTmpDir(); err != nil {

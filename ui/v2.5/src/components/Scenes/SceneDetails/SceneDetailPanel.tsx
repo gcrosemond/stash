@@ -8,6 +8,7 @@ import { PerformerCard } from "src/components/Performers/PerformerCard";
 import { sortPerformers } from "src/core/performers";
 import { DirectorLink } from "src/components/Shared/Link";
 import { CustomFields } from "src/components/Shared/CustomFields";
+import { MovieDetailScenes } from "./MovieDetailScenes";
 
 interface ISceneDetailProps {
   scene: GQL.SceneDataFragment;
@@ -117,6 +118,7 @@ export const SceneDetailPanel: React.FC<ISceneDetailProps> = (props) => {
       <div className="row">
         <div className="col-12">
           {renderDetails()}
+          {props.scene.type === GQL.SceneType.Movie && <MovieDetailScenes />}
           {renderTags()}
           {renderPerformers()}
           <CustomFields values={props.scene.custom_fields} fullWidth />

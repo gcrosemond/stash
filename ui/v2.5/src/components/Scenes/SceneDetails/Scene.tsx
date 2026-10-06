@@ -1,4 +1,4 @@
-import { Tab, Nav, Dropdown, Button } from "react-bootstrap";
+import { Tab, Nav, Dropdown, Button, Form } from "react-bootstrap";
 import React, {
   useCallback,
   useEffect,
@@ -23,6 +23,9 @@ import {
 } from "src/core/StashService";
 
 import { SceneEditPanel } from "./SceneEditPanel";
+import { VirtualScenesPanel } from "./VirtualScenesPanel";
+import { MovieScenesPanel } from "./MovieScenesPanel";
+import { MovieEditorProvider } from "./MovieEditorContext";
 import { ErrorMessage } from "src/components/Shared/ErrorMessage";
 import { LoadingIndicator } from "src/components/Shared/LoadingIndicator";
 import { Icon } from "src/components/Shared/Icon";
@@ -59,6 +62,8 @@ import { goBackOrReplace } from "src/utils/history";
 import { FormattedDate } from "src/components/Shared/Date";
 import { StudioLogo } from "src/components/Shared/StudioLogo";
 import { JobFragment, useMonitorJob } from "src/utils/job";
+import { ModalComponent } from "src/components/Shared/Modal";
+import { GroupEditDraft } from "src/components/Groups/GroupDetails/GroupEditPanel";
 
 const SubmitStashBoxDraft = lazyComponent(
   () => import("src/components/Dialogs/SubmitDraft")
@@ -77,6 +82,7 @@ const ExternalPlayerButton = lazyComponent(
 const QueueViewer = lazyComponent(() => import("./QueueViewer"));
 const SceneMarkersPanel = lazyComponent(() => import("./SceneMarkersPanel"));
 const SceneFileInfoPanel = lazyComponent(() => import("./SceneFileInfoPanel"));
+const MovieInfoPanel = lazyComponent(() => import("./MovieInfoPanel"));
 const SceneDetailPanel = lazyComponent(() => import("./SceneDetailPanel"));
 const SceneHistoryPanel = lazyComponent(() => import("./SceneHistoryPanel"));
 const SceneGroupPanel = lazyComponent(() => import("./SceneGroupPanel"));
@@ -141,7 +147,7 @@ const VideoFrameRateResolution: React.FC<{
 
 interface IProps {
   scene: GQL.SceneDataFragment;
-  setTimestamp: (num: number) => void;
+  setTimestamp: (num: number, end?: number) => void;
   queueScenes: QueuedScene[];
   onQueueNext: () => void;
   onQueuePrevious: () => void;
@@ -157,6 +163,7 @@ interface IProps {
   setCollapsed: (state: boolean) => void;
   setContinuePlaylist: (value: boolean) => void;
   onRefreshScene: () => Promise<void>;
+  onWaveformJobQueued: (jobID: string) => void;
 }
 
 interface ISceneParams {
@@ -220,6 +227,16 @@ const ScenePage: React.FC<IProps> = PatchComponent("ScenePage", (props) => {
   const [isMerging, setIsMerging] = useState(false);
   const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState<boolean>(false);
   const [isGenerateDialogOpen, setIsGenerateDialogOpen] = useState(false);
+  const [isConvertToMovieDialogOpen, setIsConvertToMovieDialogOpen] = useState(false);
+  const [generateWaveformOnConvert, setGenerateWaveformOnConvert] = useState(true);
+  const [movieTransitioning, setMovieTransitioning] = useState(false);
+  const [convertToMovie] = GQL.useSceneConvertToMovieMutation();
+  const [convertFromMovie] = GQL.useSceneConvertFromMovieMutation();
+  const [generateAudioWaveform] = GQL.useSceneGenerateAudioWaveformMutation();
+  const virtualScenesQuery = GQL.useFindVirtualScenesQuery({
+    skip: scene.type !== GQL.SceneType.Movie,
+    variables: { source_movie_ids: [scene.id] },
+  });
 
   const onScreenshotJobComplete = useCallback(
     async (job?: JobFragment) => {
@@ -270,9 +287,11 @@ const ScenePage: React.FC<IProps> = PatchComponent("ScenePage", (props) => {
   // set up hotkeys
   useEffect(() => {
     Mousetrap.bind("a", () => setActiveTabKey("scene-details-panel"));
-    Mousetrap.bind("q", () => setActiveTabKey("scene-queue-panel"));
     Mousetrap.bind("e", () => setActiveTabKey("scene-edit-panel"));
-    Mousetrap.bind("k", () => setActiveTabKey("scene-markers-panel"));
+    if (scene.type !== GQL.SceneType.Movie) {
+      Mousetrap.bind("q", () => setActiveTabKey("scene-queue-panel"));
+      Mousetrap.bind("k", () => setActiveTabKey("scene-markers-panel"));
+    }
     Mousetrap.bind("i", () => setActiveTabKey("scene-file-info-panel"));
     Mousetrap.bind("h", () => setActiveTabKey("scene-history-panel"));
     Mousetrap.bind("o", () => {
@@ -475,6 +494,108 @@ const ScenePage: React.FC<IProps> = PatchComponent("ScenePage", (props) => {
     }
   }
 
+  function maybeRenderConvertToMovieDialog() {
+    if (!isConvertToMovieDialogOpen) return;
+
+    return (
+      <ModalComponent
+        show
+        header="Convert to movie"
+        accept={{ onClick: () => void handleConvertToMovie(), text: "Convert" }}
+        cancel={{
+          onClick: () => setIsConvertToMovieDialogOpen(false),
+          text: intl.formatMessage({ id: "actions.cancel" }),
+          variant: "secondary",
+        }}
+        isRunning={movieTransitioning}
+      >
+        <p>Convert this scene into a movie for virtual scene editing.</p>
+        <Form.Check
+          id="generate-waveform-on-convert"
+          label="Generate audio waveform"
+          checked={generateWaveformOnConvert}
+          onChange={(event) => setGenerateWaveformOnConvert(event.target.checked)}
+        />
+      </ModalComponent>
+    );
+  }
+
+  async function handleConvertToMovie() {
+    setMovieTransitioning(true);
+    try {
+      await convertToMovie({ variables: { id: scene.id } });
+      if (generateWaveformOnConvert) {
+        try {
+          const waveformResult = await generateAudioWaveform({
+            variables: { id: scene.id, overwrite: false },
+          });
+          const jobID = waveformResult.data?.sceneGenerateAudioWaveform;
+          if (jobID) props.onWaveformJobQueued(jobID);
+          Toast.success("Audio waveform generation queued.");
+        } catch (error) {
+          Toast.error(`Movie converted, but waveform generation was not queued: ${String(error)}`);
+        }
+      }
+      await onRefreshScene();
+      setActiveTabKey("movie-scenes-panel");
+      setIsConvertToMovieDialogOpen(false);
+    } catch (error) {
+      Toast.error(String(error));
+    } finally {
+      setMovieTransitioning(false);
+    }
+  }
+
+  async function handleConvertFromMovie() {
+    setMovieTransitioning(true);
+    try {
+      const virtualScenesResult = await virtualScenesQuery.refetch();
+      const virtualSceneCount =
+        virtualScenesResult.data?.findScenes.scenes.length ?? 0;
+      const ignoredRangeCount = scene.ignored_ranges.length;
+      const hasDependentData = virtualSceneCount > 0 || ignoredRangeCount > 0;
+      if (
+        hasDependentData &&
+        !window.confirm(
+          `Convert this movie back to a regular scene? This will permanently delete ${virtualSceneCount} virtual scene${virtualSceneCount === 1 ? "" : "s"} and ${ignoredRangeCount} ignored range${ignoredRangeCount === 1 ? "" : "s"}.`
+        )
+      ) {
+        return;
+      }
+
+      await convertFromMovie({
+        variables: {
+          id: scene.id,
+          deleteVirtualScenes: hasDependentData,
+        },
+      });
+      await onRefreshScene();
+      setActiveTabKey("scene-details-panel");
+    } catch (error) {
+      Toast.error(String(error));
+    } finally {
+      setMovieTransitioning(false);
+    }
+  }
+
+  function createGroupFromMovie() {
+    const duration = scene.files[0]?.duration;
+    const group: GroupEditDraft = {
+      name: scene.title ?? undefined,
+      duration: duration !== undefined ? Math.round(duration) : undefined,
+      date: scene.date ?? scene.production_date ?? undefined,
+      rating100: scene.rating100 ?? undefined,
+      studio: scene.studio ?? undefined,
+      director: scene.director ?? undefined,
+      synopsis: scene.details ?? undefined,
+      urls: [...scene.urls],
+      tags: [...scene.tags],
+      front_image: scene.paths.screenshot ?? undefined,
+    };
+
+    history.push({ pathname: "/groups/new", state: { group } });
+  }
+
   const renderOperations = () => (
     <Dropdown>
       <Dropdown.Toggle
@@ -502,6 +623,35 @@ const ScenePage: React.FC<IProps> = PatchComponent("ScenePage", (props) => {
         >
           <FormattedMessage id="actions.generate" />…
         </Dropdown.Item>
+        {scene.type === GQL.SceneType.Normal && (
+          <Dropdown.Item
+            key="convert-to-movie"
+            className="bg-secondary text-white"
+            disabled={movieTransitioning}
+            onClick={() => setIsConvertToMovieDialogOpen(true)}
+          >
+            {movieTransitioning ? "Converting…" : "Convert to movie"}
+          </Dropdown.Item>
+        )}
+        {scene.type === GQL.SceneType.Movie && (
+          <Dropdown.Item
+            key="create-group-from-movie"
+            className="bg-secondary text-white"
+            onClick={createGroupFromMovie}
+          >
+            Create group from movie
+          </Dropdown.Item>
+        )}
+        {scene.type === GQL.SceneType.Movie && (
+          <Dropdown.Item
+            key="convert-from-movie"
+            className="bg-secondary text-white"
+            disabled={movieTransitioning}
+            onClick={() => void handleConvertFromMovie()}
+          >
+            {movieTransitioning ? "Converting…" : "Convert to regular scene"}
+          </Dropdown.Item>
+        )}
         {boxes.length > 0 && (
           <Dropdown.Item
             key="submit"
@@ -546,7 +696,7 @@ const ScenePage: React.FC<IProps> = PatchComponent("ScenePage", (props) => {
                 <FormattedMessage id="details" />
               </Nav.Link>
             </Nav.Item>
-            {queueScenes.length > 0 ? (
+            {scene.type !== GQL.SceneType.Movie && queueScenes.length > 0 ? (
               <Nav.Item>
                 <Nav.Link eventKey="scene-queue-panel">
                   <FormattedMessage id="queue" />
@@ -555,11 +705,18 @@ const ScenePage: React.FC<IProps> = PatchComponent("ScenePage", (props) => {
             ) : (
               ""
             )}
-            <Nav.Item>
-              <Nav.Link eventKey="scene-markers-panel">
-                <FormattedMessage id="markers" />
-              </Nav.Link>
-            </Nav.Item>
+            {scene.type !== GQL.SceneType.Movie && (
+              <Nav.Item>
+                <Nav.Link eventKey="scene-markers-panel">
+                  <FormattedMessage id="markers" />
+                </Nav.Link>
+              </Nav.Item>
+            )}
+            {scene.type === GQL.SceneType.Movie && (
+              <Nav.Item>
+                <Nav.Link eventKey="movie-scenes-panel">Scenes</Nav.Link>
+              </Nav.Item>
+            )}
             {scene.groups.length > 0 ? (
               <Nav.Item>
                 <Nav.Link eventKey="scene-group-panel">
@@ -589,8 +746,14 @@ const ScenePage: React.FC<IProps> = PatchComponent("ScenePage", (props) => {
             </Nav.Item>
             <Nav.Item>
               <Nav.Link eventKey="scene-file-info-panel">
-                <FormattedMessage id="file_info" />
-                <Counter count={scene.files.length} hideZero hideOne />
+                {scene.type === GQL.SceneType.Virtual ? (
+                  <FormattedMessage id="movie_info" defaultMessage="Movie Info" />
+                ) : (
+                  <>
+                    <FormattedMessage id="file_info" />
+                    <Counter count={scene.files.length} hideZero hideOne />
+                  </>
+                )}
               </Nav.Link>
             </Nav.Item>
             <Nav.Item>
@@ -612,30 +775,39 @@ const ScenePage: React.FC<IProps> = PatchComponent("ScenePage", (props) => {
           <Tab.Pane eventKey="scene-details-panel">
             <SceneDetailPanel scene={scene} />
           </Tab.Pane>
-          <Tab.Pane eventKey="scene-queue-panel">
-            <QueueViewer
-              scenes={queueScenes}
-              currentID={scene.id}
-              continue={continuePlaylist}
-              setContinue={setContinuePlaylist}
-              onSceneClicked={onQueueSceneClicked}
-              onNext={onQueueNext}
-              onPrevious={onQueuePrevious}
-              onRandom={onQueueRandom}
-              start={queueStart}
-              hasMoreScenes={queueHasMoreScenes}
-              onLessScenes={onQueueLessScenes}
-              onMoreScenes={onQueueMoreScenes}
-            />
-          </Tab.Pane>
-          <Tab.Pane eventKey="scene-markers-panel">
-            <SceneMarkersPanel
-              sceneId={scene.id}
-              onClickMarker={onClickMarker}
-              onLoopMarker={onLoopMarker}
-              isVisible={activeTabKey === "scene-markers-panel"}
-            />
-          </Tab.Pane>
+          {scene.type !== GQL.SceneType.Movie && (
+            <Tab.Pane eventKey="scene-queue-panel">
+              <QueueViewer
+                scenes={queueScenes}
+                currentID={scene.id}
+                continue={continuePlaylist}
+                setContinue={setContinuePlaylist}
+                onSceneClicked={onQueueSceneClicked}
+                onNext={onQueueNext}
+                onPrevious={onQueuePrevious}
+                onRandom={onQueueRandom}
+                start={queueStart}
+                hasMoreScenes={queueHasMoreScenes}
+                onLessScenes={onQueueLessScenes}
+                onMoreScenes={onQueueMoreScenes}
+              />
+            </Tab.Pane>
+          )}
+          {scene.type !== GQL.SceneType.Movie && (
+            <Tab.Pane eventKey="scene-markers-panel">
+              <SceneMarkersPanel
+                sceneId={scene.id}
+                onClickMarker={onClickMarker}
+                onLoopMarker={onLoopMarker}
+                isVisible={activeTabKey === "scene-markers-panel"}
+              />
+            </Tab.Pane>
+          )}
+          {scene.type === GQL.SceneType.Movie && (
+            <Tab.Pane eventKey="movie-scenes-panel">
+              <MovieScenesPanel />
+            </Tab.Pane>
+          )}
           <Tab.Pane eventKey="scene-group-panel">
             <SceneGroupPanel scene={scene} />
           </Tab.Pane>
@@ -654,7 +826,11 @@ const ScenePage: React.FC<IProps> = PatchComponent("ScenePage", (props) => {
             className="file-info-panel"
             eventKey="scene-file-info-panel"
           >
-            <SceneFileInfoPanel scene={scene} />
+            {scene.type === GQL.SceneType.Virtual ? (
+              <MovieInfoPanel scene={scene} />
+            ) : (
+              <SceneFileInfoPanel scene={scene} />
+            )}
           </Tab.Pane>
           <Tab.Pane eventKey="scene-edit-panel" mountOnEnter>
             <SceneEditPanel
@@ -693,6 +869,7 @@ const ScenePage: React.FC<IProps> = PatchComponent("ScenePage", (props) => {
         <title>{title}</title>
       </Helmet>
       {maybeRenderSceneGenerateDialog()}
+      {maybeRenderConvertToMovieDialog()}
       {maybeRenderMergeDialog()}
       {maybeRenderDeleteDialog()}
       <div
@@ -778,6 +955,7 @@ const SceneLoader: React.FC<RouteComponentProps<ISceneParams>> = ({
   history,
   match,
 }) => {
+  const [conversionWaveformJobID, setConversionWaveformJobID] = useState<string>();
   const { id } = match.params;
   const { configuration } = useConfigurationContext();
   const { data, loading, error, refetch } = useFindScene(id);
@@ -817,6 +995,11 @@ const SceneLoader: React.FC<RouteComponentProps<ISceneParams>> = ({
   }, [configuration?.interface.continuePlaylistDefault, queryParams]);
 
   const [queueScenes, setQueueScenes] = useState<QueuedScene[]>([]);
+  const [currentTimestamp, setCurrentTimestamp] = useState(0);
+  const [playerPosition, setPlayerPosition] = useState<{
+    sceneID: string;
+    seconds: number;
+  }>();
 
   const [collapsed, setCollapsed] = useState(false);
   const [continuePlaylist, setContinuePlaylist] = useState(queryContinue);
@@ -824,7 +1007,7 @@ const SceneLoader: React.FC<RouteComponentProps<ISceneParams>> = ({
     !(configuration?.interface.showScrubber ?? true)
   );
 
-  const _setTimestamp = useRef<(value: number) => void>();
+  const _setTimestamp = useRef<(value: number, end?: number) => void>();
   const initialTimestamp = useMemo(() => {
     const t = queryParams.get("t");
     if (!t) return 0;
@@ -846,13 +1029,13 @@ const SceneLoader: React.FC<RouteComponentProps<ISceneParams>> = ({
     [queueScenes, id]
   );
 
-  function getSetTimestamp(fn: (value: number) => void) {
+  function getSetTimestamp(fn: (value: number, end?: number) => void) {
     _setTimestamp.current = fn;
   }
 
-  function setTimestamp(value: number) {
+  function setTimestamp(value: number, end?: number) {
     if (_setTimestamp.current) {
-      _setTimestamp.current(value);
+      _setTimestamp.current(value, end);
     }
   }
 
@@ -1041,43 +1224,77 @@ const SceneLoader: React.FC<RouteComponentProps<ISceneParams>> = ({
     return <ErrorMessage error={`No scene found with id ${id}.`} />;
   }
 
-  return (
-    <div className="row">
-      <ScenePage
-        scene={scene}
-        setTimestamp={setTimestamp}
-        queueScenes={queueScenes}
-        queueStart={queueStart}
-        onDelete={onDelete}
-        onQueueNext={() => queueNext(autoPlayOnSelected)}
-        onQueuePrevious={() => queuePrevious(autoPlayOnSelected)}
-        onQueueRandom={() => queueRandom(autoPlayOnSelected)}
-        onQueueSceneClicked={onQueueSceneClicked}
-        continuePlaylist={continuePlaylist}
-        queueHasMoreScenes={queueHasMoreScenes}
-        onQueueLessScenes={onQueueLessScenes}
-        onQueueMoreScenes={onQueueMoreScenes}
-        collapsed={collapsed}
-        setCollapsed={setCollapsed}
-        setContinuePlaylist={setContinuePlaylist}
-        onRefreshScene={onRefreshScene}
-      />
-      <div className={`scene-player-container ${collapsed ? "expanded" : ""}`}>
-        <ScenePlayer
-          key="ScenePlayer"
+  const content = (
+    <>
+      <div className="row">
+        <ScenePage
           scene={scene}
-          hideScrubberOverride={hideScrubber}
-          autoplay={autoplay}
-          permitLoop={!continuePlaylist}
-          initialTimestamp={initialTimestamp}
-          sendSetTimestamp={getSetTimestamp}
-          onComplete={onComplete}
-          onNext={() => queueNext(true)}
-          onPrevious={() => queuePrevious(true)}
+          setTimestamp={setTimestamp}
+          queueScenes={queueScenes}
+          queueStart={queueStart}
+          onDelete={onDelete}
+          onQueueNext={() => queueNext(autoPlayOnSelected)}
+          onQueuePrevious={() => queuePrevious(autoPlayOnSelected)}
+          onQueueRandom={() => queueRandom(autoPlayOnSelected)}
+          onQueueSceneClicked={onQueueSceneClicked}
+          continuePlaylist={continuePlaylist}
+          queueHasMoreScenes={queueHasMoreScenes}
+          onQueueLessScenes={onQueueLessScenes}
+          onQueueMoreScenes={onQueueMoreScenes}
+          collapsed={collapsed}
+          setCollapsed={setCollapsed}
+          setContinuePlaylist={setContinuePlaylist}
+          onRefreshScene={onRefreshScene}
+          onWaveformJobQueued={setConversionWaveformJobID}
         />
+        <div
+          className={`scene-player-container ${collapsed ? "expanded" : ""} ${
+            scene.type === GQL.SceneType.Movie ? "movie-editor-active" : ""
+          }`}
+        >
+          <ScenePlayer
+            key={scene.id}
+            scene={scene}
+            hideScrubberOverride={
+              hideScrubber || scene.type === GQL.SceneType.Movie
+            }
+            autoplay={autoplay}
+            permitLoop={!continuePlaylist}
+            initialTimestamp={initialTimestamp}
+            sendSetTimestamp={getSetTimestamp}
+            onTimeUpdate={(seconds) => {
+              setCurrentTimestamp(seconds);
+              setPlayerPosition({ sceneID: scene.id, seconds });
+            }}
+            onComplete={onComplete}
+            onNext={() => queueNext(true)}
+            onPrevious={() => queuePrevious(true)}
+          />
+          {scene.type === GQL.SceneType.Movie && <VirtualScenesPanel />}
+        </div>
       </div>
-    </div>
+    </>
   );
+
+  if (scene.type === GQL.SceneType.Movie) {
+    return (
+      <MovieEditorProvider
+        key={scene.id}
+        movie={scene}
+        currentTime={
+          playerPosition?.sceneID === scene.id ? currentTimestamp : 0
+        }
+        hasPlayerPosition={playerPosition?.sceneID === scene.id}
+        onRefresh={onRefreshScene}
+        onPreviewRange={setTimestamp}
+        waveformJobID={conversionWaveformJobID}
+      >
+        {content}
+      </MovieEditorProvider>
+    );
+  }
+
+  return content;
 };
 
 export default SceneLoader;

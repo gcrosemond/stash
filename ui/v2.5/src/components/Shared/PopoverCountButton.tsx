@@ -40,6 +40,7 @@ export const Count: React.FC<{
 
 type PopoverLinkType =
   | "scene"
+  | "movie"
   | "image"
   | "gallery"
   | "marker"
@@ -74,6 +75,8 @@ export const PopoverCountButton: React.FC<IProps> = ({
     switch (type) {
       case "scene":
         return faPlayCircle;
+      case "movie":
+        return faVideo;
       case "image":
         return faImage;
       case "gallery":
@@ -96,6 +99,11 @@ export const PopoverCountButton: React.FC<IProps> = ({
         return {
           one: "scene",
           other: "scenes",
+        };
+      case "movie":
+        return {
+          one: "movie",
+          other: "movies",
         };
       case "image":
         return {

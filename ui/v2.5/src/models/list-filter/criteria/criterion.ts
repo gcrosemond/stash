@@ -247,6 +247,7 @@ export type InputType =
   | "tags"
   | "performer_tags"
   | "scenes"
+  | "movies"
   | "scene_tags"
   | "groups"
   | "galleries"

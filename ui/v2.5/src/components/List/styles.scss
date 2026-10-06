@@ -1277,3 +1277,22 @@ ul.selectable-list {
     }
   }
 }
+
+.sidebar-number-filter {
+  select.form-control {
+    margin-bottom: 0.5rem;
+  }
+
+  .sidebar-number-filter-values {
+    display: flex;
+    gap: 0.5rem;
+
+    input {
+      min-width: 0;
+    }
+  }
+
+  .sidebar-number-filter-clear {
+    margin: 0.5rem 0;
+  }
+}

@@ -27,7 +27,7 @@ import { TagIDSelect } from "../Tags/TagSelect";
 import { StudioIDSelect } from "../Studios/StudioSelect";
 import { GalleryIDSelect } from "../Galleries/GallerySelect";
 import { GroupIDSelect } from "../Groups/GroupSelect";
-import { SceneIDSelect } from "../Scenes/SceneSelect";
+import { MovieIDSelect, SceneIDSelect } from "../Scenes/SceneSelect";
 
 export type SelectObject = {
   id: string;
@@ -44,6 +44,7 @@ interface ITypeProps {
     | "scene_tags"
     | "performer_tags"
     | "scenes"
+    | "movies"
     | "groups"
     | "galleries";
 }
@@ -381,6 +382,8 @@ export const FilterSelect: React.FC<IFilterProps & ITypeProps> = (props) => {
       return <StudioSelect {...props} creatable={false} />;
     case "scenes":
       return <SceneSelect {...props} creatable={false} />;
+    case "movies":
+      return <MovieIDSelect {...props} creatable={false} />;
     case "groups":
       return <GroupSelect {...props} creatable={false} />;
     case "galleries":
