@@ -366,7 +366,11 @@ const ScrapedImage: React.FC<IScrapedImageProps> = (props) => {
   }
 
   return (
-    <img className={props.className} src={value} alt={props.placeholder} />
+    <img
+      className={`scrape-dialog-image ${props.className ?? ""}`}
+      src={value}
+      alt={props.placeholder}
+    />
   );
 };
 

@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from "react";
-import { useIntl } from "react-intl";
+import { FormattedMessage, useIntl } from "react-intl";
 import * as GQL from "src/core/generated-graphql";
 import * as yup from "yup";
 import Mousetrap from "mousetrap";
 import { LoadingIndicator } from "src/components/Shared/LoadingIndicator";
 import { DetailsEditNavbar } from "src/components/Shared/DetailsEditNavbar";
-import { Button, Form } from "react-bootstrap";
+import { Button, Dropdown, Form } from "react-bootstrap";
 import { faPlus } from "@fortawesome/free-solid-svg-icons";
 import ImageUtils from "src/utils/image";
 import { addUpdateStashID, getStashIDs } from "src/utils/stashIds";
@@ -26,6 +26,11 @@ import {
   formatCustomFieldInput,
 } from "src/components/Shared/CustomFields";
 import cloneDeep from "lodash-es/cloneDeep";
+import StudioStashBoxModal, {
+  IStudioStashBox,
+} from "./StudioStashBoxModal";
+import { StudioScrapeDialog } from "./StudioScrapeDialog";
+import { stashboxDisplayName } from "src/utils/stashbox";
 
 interface IStudioEditPanel {
   studio: Partial<GQL.StudioDataFragment>;
@@ -52,6 +57,9 @@ export const StudioEditPanel: React.FC<IStudioEditPanel> = ({
 
   // Editing state
   const [isStashIDSearchOpen, setIsStashIDSearchOpen] = useState(false);
+  const [selectedStashBox, setSelectedStashBox] =
+    useState<IStudioStashBox>();
+  const [scrapedStudio, setScrapedStudio] = useState<GQL.ScrapedStudio>();
 
   // Network state
   const [isLoading, setIsLoading] = useState(false);
@@ -84,6 +92,7 @@ export const StudioEditPanel: React.FC<IStudioEditPanel> = ({
     tag_ids: (studio.tags ?? []).map((t) => t.id),
     ignore_auto_tag: studio.ignore_auto_tag ?? false,
     stash_ids: getStashIDs(studio.stash_ids),
+    image: studio.image_path ?? null,
     custom_fields: cloneDeep(studio.custom_fields ?? {}),
   };
 
@@ -106,9 +115,8 @@ export const StudioEditPanel: React.FC<IStudioEditPanel> = ({
     onSubmit: submit,
   });
 
-  const { resetTagsState, tagsControl } = useTagsEdit(studio.tags, (ids) =>
-    formik.setFieldValue("tag_ids", ids)
-  );
+  const { resetTagsState, tags, tagsControl, updateTagsStateFromScraper } =
+    useTagsEdit(studio.tags, (ids) => formik.setFieldValue("tag_ids", ids));
 
   function onSetParentStudio(item: Studio | null) {
     setParentStudio(item);
@@ -226,6 +234,68 @@ export const StudioEditPanel: React.FC<IStudioEditPanel> = ({
     );
   }
 
+  function updateStudioEditStateFromScraper(scraped: GQL.ScrapedStudio) {
+    formik.setFieldValue("name", scraped.name);
+    formik.setFieldValue(
+      "aliases",
+      scraped.aliases
+        ?.split(",")
+        .map((alias) => alias.trim())
+        .filter(Boolean) ?? []
+    );
+    formik.setFieldValue("urls", scraped.urls ?? []);
+    formik.setFieldValue("details", scraped.details ?? "");
+    formik.setFieldValue("image", scraped.image ?? null);
+    updateTagsStateFromScraper(scraped.tags ?? undefined);
+
+    if (scraped.parent?.stored_id) {
+      onSetParentStudio({
+        id: scraped.parent.stored_id,
+        name: scraped.parent.name,
+        aliases: scraped.parent.aliases
+          ?.split(",")
+          .map((alias) => alias.trim()) ?? [],
+      });
+    }
+
+    if (selectedStashBox && scraped.remote_site_id) {
+      formik.setFieldValue(
+        "stash_ids",
+        addUpdateStashID(formik.values.stash_ids, {
+          endpoint: selectedStashBox.endpoint,
+          stash_id: scraped.remote_site_id,
+        })
+      );
+    }
+  }
+
+  function renderScraperMenu() {
+    const stashBoxes = stashConfig?.general.stashBoxes ?? [];
+    if (stashBoxes.length === 0) return;
+
+    return (
+      <Dropdown className="d-inline-block">
+        <Dropdown.Toggle variant="secondary" className="mr-2">
+          <FormattedMessage id="actions.scrape_with" />
+        </Dropdown.Toggle>
+        <Dropdown.Menu id="studio-scraper-popover">
+          {stashBoxes.map((stashBox, index) => (
+            <Dropdown.Item
+              as={Button}
+              className="minimal"
+              key={stashBox.endpoint}
+              onClick={() =>
+                setSelectedStashBox({ ...stashBox, index })
+              }
+            >
+              {stashboxDisplayName(stashBox.name, index)}
+            </Dropdown.Item>
+          ))}
+        </Dropdown.Menu>
+      </Dropdown>
+    );
+  }
+
   const {
     renderField,
     renderInputField,
@@ -293,6 +363,28 @@ export const StudioEditPanel: React.FC<IStudioEditPanel> = ({
           initialQuery={studio.name ?? ""}
         />
       )}
+      {selectedStashBox && !scrapedStudio && (
+        <StudioStashBoxModal
+          instance={selectedStashBox}
+          name={formik.values.name}
+          onHide={() => setSelectedStashBox(undefined)}
+          onSelectStudio={(result) => setScrapedStudio(result)}
+        />
+      )}
+      {selectedStashBox && scrapedStudio && (
+        <StudioScrapeDialog
+          studio={formik.values}
+          parentStudio={parentStudio}
+          studioTags={tags}
+          scraped={scrapedStudio}
+          stashBox={selectedStashBox}
+          onClose={(result) => {
+            if (result) updateStudioEditStateFromScraper(result);
+            setScrapedStudio(undefined);
+            setSelectedStashBox(undefined);
+          }}
+        />
+      )}
 
       <Prompt
         when={formik.dirty}
@@ -358,6 +450,7 @@ export const StudioEditPanel: React.FC<IStudioEditPanel> = ({
         onClearImage={() => onImageLoad(null)}
         onDelete={onDelete}
         acceptSVG
+        customButtons={renderScraperMenu()}
       />
     </>
   );
